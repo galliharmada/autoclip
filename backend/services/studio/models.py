@@ -361,6 +361,8 @@ class ImportOptions(BaseModel):
     source_window: SourceWindow | None = None
     # Long stream source: moments come from chat and sound, not from a model or the full transcript.
     stream: bool = False
+    stream_top: int = Field(default=8, ge=1, le=20)  # how many moments to clip
+    stream_layout: Literal['auto', 'stack', 'crop'] = 'auto'  # auto = facecam over gameplay when a facecam is found
 
     @model_validator(mode='after')
     def unique_platforms(self):

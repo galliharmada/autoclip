@@ -77,16 +77,18 @@ def get_version() -> Dict[str, Any]:
     return {'version': __version__}
 
 
-@server.tool(name='start_quick_output', description='一键出片：本地视频或 HTTPS 的 YouTube / B 站链接，按 platforms 自动制作视频、封面和发布文案。template 可选 editorial / street / news / cinema / classic，且只在 mcp_v2_tools 打开时接受；关闭时传了风格返回 disabled。返回的 template 是实际用的风格，requested_template 是请求值。共用桌面 AI 与片尾设置，立即返回 project_id；之后用 get_quick_output_status 查询。')
+@server.tool(name='start_quick_output', description='一键出片：本地视频或 HTTPS 的 YouTube / B 站链接，按 platforms 自动制作视频、封面和发布文案。template 可选 editorial / street / news / cinema / classic，且只在 mcp_v2_tools 打开时接受；关闭时传了风格返回 disabled。返回的 template 是实际用的风格，requested_template 是请求值。共用桌面 AI 与片尾设置，立即返回 project_id；之后用 get_quick_output_status 查询。直播回放：stream=true（Twitch / YouTube VOD 或本地文件），按聊天热度和音量找 stream_top 个高光；chat_path 可给本地聊天 JSONL，stream_layout 为 auto / stack / crop。')
 def start_quick_output(source: str, platforms: Optional[List[str]] = None, name: Optional[str] = None,
                        srt_path: Optional[str] = None, instruction: str = '', browser: Optional[str] = None,
-                       portrait_style: str = 'auto', template: Optional[str] = None) -> Dict[str, Any]:
+                       portrait_style: str = 'auto', template: Optional[str] = None, stream: bool = False,
+                       stream_top: int = 8, stream_layout: str = 'auto', chat_path: Optional[str] = None) -> Dict[str, Any]:
     from backend.services import mcp_jobs
     from backend.services import quick_output_runner as quick
     from backend.services.studio.template_choice import style_for_request
     try:
         project_id = quick.start(source, platforms or ['douyin'], name=name, srt_path=srt_path, instruction=instruction,
-                                 browser=browser, portrait_style=portrait_style, template=template)
+                                 browser=browser, portrait_style=portrait_style, template=template,
+                                 **({'stream': True, 'stream_top': stream_top, 'stream_layout': stream_layout, 'chat_path': chat_path} if stream else {}))
     except quick.StyleDisabled as error:
         return {'ok': False, 'error_code': 'disabled', 'error': str(error),
                 **mcp_jobs.progress_fields(status='failed')}

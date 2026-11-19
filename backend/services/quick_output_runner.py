@@ -11,13 +11,18 @@ from urllib.parse import urlparse
 from backend import __version__
 
 
+MAX_CHAT_BYTES = 50 * 1024 * 1024
+STREAM_DOMAINS = ('twitch.tv',)
+
+
 class StyleDisabled(Exception):
     """A template was requested while mcp_v2_tools is off."""
 
 
 def start(source: str, platforms: list[str], *, name: str | None = None, srt_path: str | None = None,
           instruction: str = '', browser: str | None = None, portrait_style: str = 'auto',
-          template: str | None = None) -> str:
+          template: str | None = None, stream: bool = False, stream_top: int = 8, stream_layout: str = 'auto',
+          chat_path: str | None = None) -> str:
     from backend.core.database import SessionLocal, create_tables
     from backend.schemas.project import ProjectCreate
     from backend.services.project_service import ProjectService
@@ -31,14 +36,23 @@ def start(source: str, platforms: list[str], *, name: str | None = None, srt_pat
     if template is not None and not flag_enabled(resolve_features(), 'mcp_v2_tools'):
         raise StyleDisabled('剪辑风格尚未开放，请设置 AUTOCLIP_FLAGS=mcp_v2_tools=on')
     options = ImportOptions(auto_start=True, platforms=platforms, instruction=instruction, portrait_style=portrait_style,
-                            html_template=template)
+                            html_template=template, stream=stream, stream_top=stream_top, stream_layout=stream_layout)
+    chat = None
+    if chat_path:
+        from backend.services.studio import stream_chat
+        chat = Path(chat_path).expanduser().resolve()
+        if not chat.is_file() or not 0 < chat.stat().st_size <= MAX_CHAT_BYTES:
+            raise ValueError('聊天记录文件不存在、为空或超过 50 MB')
+        if not stream_chat.load_chat(chat):
+            raise ValueError('聊天记录里没有可用消息：每行应为 {"t": 秒, "text": "内容"}')
     parsed = urlparse(source)
     url = None
     if parsed.scheme in ('http', 'https'):
         host = (parsed.hostname or '').lower()
         if parsed.scheme != 'https' or parsed.username or parsed.password or not any(
-                host == domain or host.endswith('.' + domain) for domain in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv')):
-            raise ValueError('仅支持 HTTPS 的 B 站或 YouTube 视频链接')
+                host == domain or host.endswith('.' + domain)
+                for domain in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv', *(STREAM_DOMAINS if stream else ()))):
+            raise ValueError('仅支持 HTTPS 的 B 站或 YouTube 视频链接' + ('（直播回放还支持 Twitch）' if stream else ''))
         url = source
     else:
         video = Path(source).expanduser().resolve()
@@ -52,7 +66,7 @@ def start(source: str, platforms: list[str], *, name: str | None = None, srt_pat
     if browser not in (None, 'chrome', 'edge', 'firefox', 'safari'):
         raise ValueError('不支持的浏览器')
     create_tables()
-    if not url:
+    if not url and not stream:  # a stream is clipped by chat and sound, not by a transcript
         from backend.services.studio import preflight
         # One decision for the route quick output really runs (Studio jobs honour analysis_mode).
         preflight.check(preflight.ResolvedInputs(video, subtitle, entry='studio', goal=options.goal))
@@ -67,11 +81,17 @@ def start(source: str, platforms: list[str], *, name: str | None = None, srt_pat
             if subtitle:
                 import shutil
                 shutil.copy2(subtitle, raw / 'input.srt')
+            if chat:
+                import shutil
+                shutil.copy2(chat, raw / 'chat.jsonl')
         else:
             target = place_video(RunRequest(video=video, srt=subtitle, name=project.name,
                                                 project_id=project_id, register_db=False))
             project.video_path = str(target)
             db.commit()
+            if chat:
+                import shutil
+                shutil.copy2(chat, target.parent / 'chat.jsonl')
     import psutil
     producer = {'pid': os.getpid(), 'created_at': psutil.Process().create_time()}
     jobs.inspect_project(project_id, options, url, browser, producer=producer)

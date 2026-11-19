@@ -36,6 +36,8 @@ def _clock(seconds: float) -> str:
 def drafts(plan: dict, video: Path, *, top_n: int = 8) -> list[dict]:
     from backend.services.studio.jobs import SCORE_KEY
     prefs = plan.get('preferences') or {}
+    overrides = plan.get('overrides') or {}
+    top_n = int(overrides.get('stream_top') or top_n)
     duration = _duration(video)
     windows = stream_signals.score_source(video, Path(video).parent / stream_chat.CHAT_FILE, duration, top_n=top_n)
     if not windows:
@@ -46,7 +48,7 @@ def drafts(plan: dict, video: Path, *, top_n: int = 8) -> list[dict]:
         logger.warning('Stream transcription skipped: %s', type(error).__name__)
         cues = []
     rect = None
-    if prefs.get('aspect') == 'portrait':
+    if prefs.get('aspect') == 'portrait' and overrides.get('stream_layout', 'auto') != 'crop':
         try:
             rect = facecam.detect_facecam(video, duration)
         except Exception as error:  # noqa: BLE001 - no facecam means a plain vertical crop

@@ -90,9 +90,11 @@ def cmd_produce(args: argparse.Namespace) -> int:
         # Providers and ASR may print progress from worker threads. Keep stdout parseable
         # for scripts, just as the MCP stdio entry point keeps its protocol stream clean.
         with contextlib.redirect_stdout(sys.stderr):
+            stream = ({'stream': True, 'stream_top': args.top, 'stream_layout': args.layout, 'chat_path': args.chat}
+                      if getattr(args, 'stream', False) else {})
             project_id = quick.start(args.source, args.platform or ['douyin'], name=args.name, srt_path=args.srt,
                                      instruction=args.instruction, browser=args.browser, portrait_style=args.portrait_style,
-                                     template=args.template)
+                                     template=args.template, **stream)
             if not args.json:
                 print(f'1.5 一键出片 · {project_id} · 进度写入项目目录', file=sys.stderr)
             result = quick.wait(project_id, timeout=args.timeout)
@@ -615,6 +617,18 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument('--timeout', type=float, default=7200, help='等待秒数；超时不会取消项目')
     q.add_argument('--json', action='store_true', help='只在 stdout 输出 JSON 结果')
     q.set_defaults(func=cmd_produce)
+
+    st = sub.add_parser('stream', help='直播回放（Twitch / YouTube VOD 或本地文件）：按聊天热度和音量找高光，出竖版片段；有摄像头时上下分屏')
+    st.add_argument('source', help='本地视频路径，或 HTTPS 的 Twitch / YouTube 回放链接')
+    st.add_argument('--top', type=int, default=8, help='剪几个高光（1-20，默认 8）')
+    st.add_argument('--layout', choices=['auto', 'stack', 'crop'], default='auto', help='auto：找到摄像头就上下分屏，否则竖屏裁切')
+    st.add_argument('--chat', help='本地聊天记录（每行 {"t": 秒, "text": "内容"}）；链接导入会自动下载聊天')
+    st.add_argument('--platform', action='append', help='平台，可重复，默认 douyin')
+    st.add_argument('--name')
+    st.add_argument('--browser', choices=['chrome', 'edge', 'firefox', 'safari'])
+    st.add_argument('--timeout', type=float, default=7200, help='等待秒数；超时不会取消项目')
+    st.add_argument('--json', action='store_true', help='只在 stdout 输出 JSON 结果')
+    st.set_defaults(func=cmd_produce, stream=True, srt=None, instruction='', portrait_style='auto', template=None)
 
     outputs = sub.add_parser('outputs', help='查询一键出片进度和文件路径（不触发生成）')
     outputs.add_argument('project_id')

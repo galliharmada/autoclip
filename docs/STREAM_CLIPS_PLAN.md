@@ -200,10 +200,10 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 - [ ] **T5.2** Every finished hour, concatenate chunks and run the Phase 2 pre-pass on that hour only.
 
 ### Phase 6 — CLI and MCP
-- [ ] **T6.1** `autoclip stream <url> [--top N] [--layout auto|stack|crop] [--json]` in `backend/cli.py`,
+- [x] **T6.1** `autoclip stream <url> [--top N] [--layout auto|stack|crop] [--json]` in `backend/cli.py`,
   sharing the data dir with the desktop app like `run`/`produce` do. Test in `test_cli.py`.
-- [ ] **T6.2** MCP tool `clip_stream` in `backend/mcp_server.py`, mirroring `start_clip_job`/`get_job_status`.
-- [ ] **T6.3** Docs: a short section in `docs/CLI_AND_MCP.md` and `README-EN.md` (only the English README;
+- [x] **T6.2** (done as extra params on `start_quick_output`, not a new tool) MCP tool `clip_stream` in `backend/mcp_server.py`, mirroring `start_clip_job`/`get_job_status`.
+- [x] **T6.3** Docs: a short section in `docs/CLI_AND_MCP.md` and `README-EN.md` (only the English README;
   ask the owner before touching the other 7 READMEs).
 
 ### Phase 7 — Final acceptance
@@ -227,6 +227,14 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 ## 7. Progress log
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
+
+- 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 6 done (T6.1–T6.3), Phase 5 (live recording) intentionally skipped (optional). `autoclip stream <source>
+  [--top N] [--layout auto|stack|crop] [--chat FILE] [--platform ..] [--json]` reuses `cmd_produce` (+`quick.start(stream=..)`); MCP: **extra params on
+  the existing `start_quick_output`** (stream, stream_top, stream_layout, chat_path) instead of a new tool, so telemetry/tool-list contracts are untouched.
+  New `ImportOptions.stream_top` (1-20) and `stream_layout`. Local streams skip the transcript preflight; `--chat` is validated (exists, <=50 MB, has
+  valid messages) before any project is created; Twitch URLs are accepted only with `stream`. **T6.3:** documented in `docs/CLI_AND_MCP.md` only.
+  `README-EN.md` was NOT changed: `scripts/check_readmes.py` requires identical command examples in all 8 READMEs, so a one-README edit fails the
+  contracts gate. Add the same block to all 8 only with the owner's OK. 8 new tests; cli/quick-output/mcp/studio suites 154 passed.
 
 - 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 4 done except the editor drag box. `facecam.py`: samples 30 frames, YuNet via `framing`, picks the
   small face that stays put in >=40% of frames (moving in-game faces and close-ups are rejected), crop rect gets the 1080x768 top-panel aspect;

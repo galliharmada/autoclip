@@ -68,6 +68,23 @@ CLI 和 MCP 多半由脚本或助手调用，默认经典可以让同样的调�
 
 MCP 不再接收 `api_key` 参数。模型密钥用环境变量 `AUTOCLIP_API_KEY`，或桌面应用里已经保存的配置。
 
+## 直播回放切片（Twitch / YouTube VOD）
+
+按**聊天热度、观众刷表情、音量突增**找出一场长直播里的高光，不用模型扫全片、也不转写整场；只对选中的片段转写字幕。
+有摄像头画面时自动做上下分屏（摄像头在上、游戏在下），否则竖屏裁切。详细方案和任务清单见 [STREAM_CLIPS_PLAN.md](STREAM_CLIPS_PLAN.md)。
+
+```bash
+# 链接导入会自动下载聊天（YouTube 回放用 yt-dlp；Twitch 首次使用会按需安装 chat-downloader）
+autoclip stream https://www.twitch.tv/videos/123456789 --top 8 --json
+# 本地文件 + 自己的聊天记录（每行 {"t": 秒, "text": "内容"}）
+autoclip stream vod.mp4 --chat chat.jsonl --layout stack --platform douyin
+```
+
+- `--top N` 剪几个高光（1–20，默认 8）；`--layout auto|stack|crop`。
+- 没有聊天记录时只靠音量找高光，效果会差一些。
+- 只处理你有权剪辑的内容（主播授权或其剪辑者计划）。
+- MCP：`start_quick_output` 加 `stream=true`、`stream_top`、`stream_layout`、`chat_path`。
+
 ## 1. 安装
 
 一行安装：
