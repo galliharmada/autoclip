@@ -36,6 +36,7 @@ function loadUrlPreview() {
       if (name === './etaModel') return { estimate: () => ({ etaMin: 2, optimistic: false, initialMin: 2, errorRatio: null }) }
       if (name === './planningCopy') return { VISUAL_SOURCE_TOO_LONG_MESSAGE: 'x' }
       if (name === './importReadiness') return readiness
+      if (name === './SourceWindowPicker') return { default: () => null, effectiveDuration: (w, d) => (w && w.end > w.start ? w.end - w.start : d) }
       if (name === './types') return { FIRST_WINDOW_END_SEC: 1800 }
       return {}
     },

@@ -900,9 +900,10 @@ def _content_drafts(project_id, plan, video, platforms=()):
     if not intelligence.ready():
         raise UserFacingError('请先在设置中配置视觉理解模型')
     try:
-        events, coverage = analyze(video, prefs)
-        drafts = make_drafts(events, prefs, plan.get('overrides', {}).get('instruction', ''), source_duration=intelligence._probe(video).get('duration'))
         window = (plan.get('overrides') or {}).get('source_window')
+        # T2: a windowed scan samples only the requested range; timestamps stay absolute.
+        events, coverage = analyze(video, prefs, window=window)
+        drafts = make_drafts(events, prefs, plan.get('overrides', {}).get('instruction', ''), source_duration=intelligence._probe(video).get('duration'), window=window)
         if isinstance(window, dict) and window.get('end') is not None:
             try:
                 win_start = float(window.get('start', 0) or 0)
@@ -2341,14 +2342,15 @@ def _produce_selected(project_id, plan):
                     raise visual_error
                 if events is None:
                     try:
-                        events, coverage = analyze(video, prefs, stage, instruction) if instruction else analyze(video, prefs, stage)
+                        window = (plan.get('overrides') or {}).get('source_window')
+                        events, coverage = analyze(video, prefs, stage, instruction, window=window) if instruction else analyze(video, prefs, stage, window=window)
                     except Exception as error:
                         # Both visual goals share one attempt, including its failure.
                         # A second paid scan requires a new explicit user confirmation.
                         visual_error = error
                         raise
                     store.change(project_id, lambda data:data.update(events=[e.model_dump() for e in events]))
-                drafts = make_drafts(events, prefs, instruction, source_duration=intelligence._probe(video).get('duration'))
+                drafts = make_drafts(events, prefs, instruction, source_duration=intelligence._probe(video).get('duration'), window=(plan.get('overrides') or {}).get('source_window'))
                 if (video.parent / 'input.srt').exists():
                     for draft in drafts:
                         draft['subtitles'] = True

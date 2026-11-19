@@ -548,7 +548,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
         loading={previewLoading}
         needsTranscriptionInstall={needsPreviewTranscriptionInstall}
         installing={repairing}
-        suggestFirstWindow={shouldSuggestFirstWindow(hasSuccessHistory(), urlPreview?.duration ?? null)}
+        suggestFirstWindow={!options.source_window && shouldSuggestFirstWindow(hasSuccessHistory(), urlPreview?.duration ?? null)}
         onInstallTranscription={() => {
           const check = readiness?.checks?.transcription
           resumeSubmit.current = false
@@ -572,6 +572,14 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
           void submit('button', undefined, true)
         }}
         onDismiss={() => { clearPreview(); setUrl(''); setPending(null); firstWindowDecided.current = false }}
+        window={options.source_window ?? null}
+        onWindowChange={next => {
+          // The same synchronous override the FormData read uses (T2), so the picker,
+          // the first-run tip and the submit cannot disagree.
+          sourceWindowOverride.current = next
+          firstWindowDecided.current = true
+          setOptions(prev => ({ ...prev, source_window: next }))
+        }}
       />}
       {platforms.includes('youtube_long') && <p className="studio-muted" role="note">{longFormNotice(longGate.durationSec, platforms)}</p>}
       {assist && <details className="studio-details" open><summary>{t("下载遇到登录限制时")}</summary><BrowserCookieControl assist browser={browser} busy={busy} onChange={setBrowser} selectRef={browserRef} /></details>}

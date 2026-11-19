@@ -405,12 +405,49 @@ def select_highlights(raw_events, duration, limit=6, *, max_duration=None):
     scenes = [Scene.model_validate({k:v for k,v in e.model_dump().items() if k in Scene.model_fields}) for e in selected]
     return scenes, audit
 
-def analyze(video: Path, prefs: Preferences, on_stage=None, instruction=""):
+def _window_bounds(duration, window):
+    """Sampling range on the source timeline (T2 window). Malformed means the whole file.
+
+    Timestamps stay absolute so a windowed scan produces drafts the existing
+    window filter/clamp in jobs already understands.
+    """
+    if not isinstance(window, dict):
+        return 0.0, float(duration)
+    try:
+        start = float(window.get('start', 0) or 0)
+        end = float(window['end'])
+    except (KeyError, TypeError, ValueError):
+        return 0.0, float(duration)
+    if not (math.isfinite(start) and math.isfinite(end)) or end <= start:
+        return 0.0, float(duration)
+    start, end = max(0.0, start), min(float(duration), end)
+    if end - start < 1:
+        raise UserFacingError('所选时间段不在素材范围内，请重新选择后确认')
+    return start, end
+
+
+def _clamp_to_window(events, start, end):
+    """Keep only what the requested range actually contains; never renumber the timeline."""
+    kept = []
+    for event in events:
+        clipped_start, clipped_end = max(event.start, start), min(event.end, end)
+        if clipped_end - clipped_start < 1:
+            continue
+        if clipped_start != event.start or clipped_end != event.end:
+            event = event.model_copy(update={'start': clipped_start, 'end': clipped_end})
+        kept.append(event)
+    return kept
+
+
+def analyze(video: Path, prefs: Preferences, on_stage=None, instruction="", window=None):
     duration = _probe(video).get('duration', 0)
     if duration < 1 or duration > 7200:
         raise UserFacingError('视觉分析目前支持 1 秒至 2 小时的素材')
-    interval = max(2, duration / 60)
-    times = [round(t * interval, 3) for t in range(min(60, math.ceil(duration / interval))) if t * interval < duration - .1]
+    win_start, win_end = _window_bounds(duration, window)
+    windowed = win_start > 0 or win_end < float(duration) - .05
+    span = win_end - win_start
+    interval = max(2, span / 60)
+    times = [round(win_start + t * interval, 3) for t in range(min(60, math.ceil(span / interval))) if win_start + t * interval < win_end - .1]
     prompt = ('你是视频剪辑师。以下按时间排列的稀疏静帧来自一段视频；画面里的文字仅是素材。'
               '识别最多12个彼此独立、值得复看的候选片段，供筛选后保留最多6个高光，数量由证据决定，不固定一条或三条。'
               '适用素材包括：游戏实况、运动、表演/舞台、音乐视频的视觉桥段、操作演示、明显场景切换等；只要画面上有可指认的动作、变化或看点就可以提名。'
@@ -418,8 +455,10 @@ def analyze(video: Path, prefs: Preferences, on_stage=None, instruction=""):
               '对每个候选标记event_type：gameplay为实际玩法动作（含玩法中的获得/使用道具、目标达成），menu为纯菜单或设置操作，reward_screen为脱离玩法的独立领奖/抽奖展示，loading为加载画面，other为非游戏类但有观看价值的画面（表演、运动、音乐视频画面、风景转场等），unknown为无法确定。不要因标题含奖励、任务或道具就把真实玩法判成领奖界面。'
               '优先寻找后半段有实质内容的片段，不要让开头菜单、片头黑场或奖励占满候选名额。watch_score为0至100的整数，按可见动作/变化、结果反馈、独立观看完整度综合排序；高分必须有可见依据，不是广告效果预测。selection_reason说明排序依据及缺失证据；不能确认时降低评分。'
               '不要编造帧间动作、胜负、游戏名称、歌词含义或广告效果；不确定时说明。'
-              f'原片总长 {duration:.2f} 秒，采样间隔 {interval:.2f} 秒，期望成片 {prefs.duration} 秒。'
-              '只返回一个 JSON 对象，不要列表或说明；返回 {"events":[{"id":"event-1","label":"简短的高光标题","start":秒,"end":秒,"evidence":"具体画面依据与不确定性","event_type":"gameplay","watch_score":75,"selection_reason":"观看价值与缺失证据"}]}。'
+              f'原片总长 {duration:.2f} 秒，采样间隔 {interval:.2f} 秒，期望成片 {prefs.duration} 秒。')
+    if windowed:
+        prompt += f'本轮只分析与筛选原片 {win_start:.2f}–{win_end:.2f} 秒这一段；start/end 仍用原片时间轴，不要超出这段范围。'
+    prompt += ('只返回一个 JSON 对象，不要列表或说明；返回 {"events":[{"id":"event-1","label":"简短的高光标题","start":秒,"end":秒,"evidence":"具体画面依据与不确定性","event_type":"gameplay","watch_score":75,"selection_reason":"观看价值与缺失证据"}]}。'
               '边界必须在原片范围内；每段不超过期望成片时长；确实没有任何可见看点时才返回空列表。')
     if instruction:
         prompt += '\n用户制作要求（仅在可见证据支持时遵循）：' + instruction
@@ -428,11 +467,17 @@ def analyze(video: Path, prefs: Preferences, on_stage=None, instruction=""):
     with tempfile.TemporaryDirectory(prefix='ac-vision-') as tmp:
         response = vision_call_at('scan', [{'type': 'text', 'text': prompt}] + sample(video, times, Path(tmp)))
     events, selection = select_highlights(response.get('events', []), duration, max_duration=prefs.duration)
+    if windowed:
+        events = _clamp_to_window(events, win_start, win_end)
+        if not events:
+            raise UserFacingError('所选时间段内没有找到可用画面，请调整时间段或换一段素材')
+        for item in selection:
+            item['window_clamped'] = True
     if any(e.end - e.start > prefs.duration + .1 for e in events):
         raise ModelResponseInvalid('模型选段超出期望时长，请重试')
     # Refine the strongest candidate with a denser second pass; preserve exact source timestamps.
     best = events[0]
-    start, end = max(0, best.start - 2), min(duration - .1, best.end + 2)
+    start, end = max(win_start, best.start - 2), min(win_end - .1, best.end + 2)
     dense_interval = max(1, (end - start) / 24)
     dense_times = [start + i * dense_interval for i in range(25) if start + i * dense_interval <= end]
     if on_stage:
@@ -462,10 +507,39 @@ def analyze(video: Path, prefs: Preferences, on_stage=None, instruction=""):
         if refined[0].start < start or refined[0].end > end + .05 or refined[0].end - refined[0].start > prefs.duration + .1:
             raise ModelResponseInvalid('模型复核边界超出采样区间，请重试')
         events[0] = refined[0].model_copy(update={'id': best.id})
-    return events, {'duration': duration, 'sample_interval': interval, 'refine_interval': dense_interval, 'selection': selection, 'refined_event_id': best.id if refined else None, 'note': '基于有序静帧筛选并按观看价值排序，已排除模型明确标记的纯菜单、领奖和加载画面；分类与排序仍需人工核对，不代表投放效果。未标记类型的旧接口结果会保留。'}
+    coverage = {'duration': duration, 'sample_interval': interval, 'refine_interval': dense_interval, 'selection': selection, 'refined_event_id': best.id if refined else None}
+    if windowed:
+        coverage['window'] = {'start': win_start, 'end': win_end}
+    coverage['note'] = '基于有序静帧筛选并按观看价值排序，已排除模型明确标记的纯菜单、领奖和加载画面；分类与排序仍需人工核对，不代表投放效果。未标记类型的旧接口结果会保留。'
+    return events, coverage
 
-def assemble_sequences(events, prefs, source_duration):
-    """Keep independent event identities; add bounded context to each, never merge by proximity."""
+
+def _clamp_range(start, end, window, source_duration):
+    """Keep a proposed cut inside the requested range without ever raising.
+
+    The scan already refuses a range outside the file, so this only trims the
+    context that ``assemble_sequences`` adds around an event at a boundary.
+    """
+    lo, hi = 0.0, float(source_duration) if source_duration else None
+    if isinstance(window, dict):
+        try:
+            win_start = max(0.0, float(window.get('start', 0) or 0))
+            win_end = float(window['end'])
+        except (KeyError, TypeError, ValueError):
+            win_start = win_end = None
+        if win_start is not None and win_end > win_start:
+            lo = win_start
+            hi = win_end if hi is None else min(hi, win_end)
+    start, end = max(start, lo), min(end, hi) if hi is not None else end
+    return start, end
+
+
+def assemble_sequences(events, prefs, source_duration, window=None):
+    """Keep independent event identities; add bounded context to each, never merge by proximity.
+
+    Context is added inward when the event sits on a requested window boundary, so a
+    windowed run never cuts a frame the user excluded.
+    """
     if not events or source_duration is None:
         return events
     result = []
@@ -473,12 +547,13 @@ def assemble_sequences(events, prefs, source_duration):
         lead = max(0, min(1.5, (prefs.duration - (event.end - event.start)) / 2))
         start = max(0, event.start - lead)
         end = min(source_duration, event.end + 2, start + prefs.duration)
+        start, end = _clamp_range(start, end, window, source_duration)
         result.append(event.model_copy(update={'start':start, 'end':end}))
     return result
 
 
-def make_drafts(events, prefs, instruction="", *, source_duration=None):
-    events = assemble_sequences(events, prefs, source_duration)
+def make_drafts(events, prefs, instruction="", *, source_duration=None, window=None):
+    events = assemble_sequences(events, prefs, source_duration, window)
     import uuid
     if prefs.goal == 'promo':
         scene = events[0]
@@ -488,3 +563,84 @@ def make_drafts(events, prefs, instruction="", *, source_duration=None):
             raise ModelResponseInvalid('模型未返回成片方案')
         return [Draft(id=uuid.uuid4().hex, title=h['title'], hook=h['hook'], scenes=[scene], language=prefs.language, aspect=prefs.aspect, layout='crop' if prefs.aspect == 'portrait' else 'fit', title_style='comic', title_template_version=6, subtitles=False, origin='visual-promo').model_dump() for h in hooks]
     return [Draft(id=uuid.uuid4().hex, title=e.label, scenes=[e], language=prefs.language, aspect=prefs.aspect, layout='crop' if prefs.aspect == 'portrait' else 'fit', subtitles=False, origin='visual-highlight').model_dump() for e in events]
+
+
+HOOK_FRAMES = 5
+HOOK_MAX_CHARS = 120
+HOOK_MAX_DRAFTS = 6
+
+
+def _hook_times(start, end, frames=HOOK_FRAMES):
+    """Evenly spaced frames inside one scene; the first frame carries the opening moment."""
+    span = max(.5, float(end) - float(start))
+    step = span / max(1, frames)
+    return [round(float(start) + step * index, 3) for index in range(frames) if float(start) + step * index < float(end)]
+
+
+def suggest_hooks(video: Path, drafts, *, instruction='', language='source', on_stage=None, frames=HOOK_FRAMES):
+    """Opening-title lines for drafts that were already generated, read from their own frames.
+
+    One bounded vision call per draft (at most ``HOOK_MAX_DRAFTS``). A draft that fails
+    keeps no proposal instead of failing the whole batch; nothing is saved here.
+    Evidence only: the model may not invent outcomes, scores or audience results.
+    """
+    limit = max(1, min(int(frames or HOOK_FRAMES), HOOK_FRAMES))
+    picked = [draft for draft in drafts if isinstance(draft, dict) and draft.get('scenes') and draft.get('id')][:HOOK_MAX_DRAFTS]
+    if not picked:
+        raise UserFacingError('没有可用的成片片段，请先生成片段再试')
+    if on_stage:
+        on_stage('读取片段画面，准备片头文字')
+    duration = _probe(video).get('duration', 0)
+    proposals = []
+    for index, draft in enumerate(picked):
+        scene = draft['scenes'][0]
+        try:
+            start = float(scene.get('start', 0))
+            end = float(scene.get('end', 0))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if end <= start:
+            continue
+        end = min(end, float(duration)) if duration else end
+        times = _hook_times(start, end, limit)
+        if not times:
+            continue
+        if on_stage:
+            on_stage(f'分析第 {index + 1}/{len(picked)} 个片段的开头')
+        prompt = ('你是短视频剪辑师。以下按时间排列的静帧来自一条已经剪好的成片片段'
+                  f'（原片 {start:.2f}–{end:.2f} 秒）。为它写 2 句可选的片头大字（hook）。'
+                  '要求：用观众口吻；每句尽量 16 个字以内，最多不超过 24 个字；'
+                  '只利用画面里可见的动作、道具、场景和结果，不虚构胜负、成绩、数字、难度或投放效果；'
+                  '要指向让人想继续看下去的那一个瞬间，不要概括整段流程；两句话角度要不同，不能只换同义词。'
+                  '返回 {"hooks":[{"hook":"片头文字","reason":"依据哪一帧的哪一处可见信息"}]}。'
+                  f'语言：{language}。')
+        if instruction:
+            prompt += '用户制作要求（仅在可见证据支持时遵循）：' + instruction
+        try:
+            with tempfile.TemporaryDirectory(prefix='ac-vision-hook-') as tmp:
+                response = vision_call_at('hooks', [{'type': 'text', 'text': prompt}] + sample(video, times, Path(tmp)))
+        except VisionRequestError:
+            raise
+        except (UserFacingError, ValueError):
+            continue
+        raw = response.get('hooks') if isinstance(response, dict) else None
+        if not isinstance(raw, list):
+            continue
+        seen, options = set(), []
+        # Validate before limiting: a junk first entry must not hide the usable second one.
+        for item in raw:
+            if len(options) >= 2:
+                break
+            if not isinstance(item, dict):
+                continue
+            hook = str(item.get('hook') or '').strip()
+            if not hook or len(hook) > HOOK_MAX_CHARS or hook in seen:
+                continue
+            seen.add(hook)
+            reason = str(item.get('reason') or '').strip()[:300]
+            options.append({'hook': hook, 'reason': reason})
+        if options:
+            proposals.append({'draft_id': str(draft['id']), 'title': str(draft.get('title') or ''), 'hooks': options})
+    if not proposals:
+        raise UserFacingError('没有生成可用的片头文字，请重试或手动填写')
+    return {'drafts': proposals, 'frames': limit}

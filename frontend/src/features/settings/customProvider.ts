@@ -6,6 +6,7 @@ import { cleanupBaseUrl, normalizeProviderBaseUrl } from './providerUrl'
 import type { Connection, ModelEntry, ModelList, ModelSettings } from './modelSettingsApi'
 import { cleanBinding } from './modelSettingsLogic'
 import { isConsoleHost } from './providerAccess'
+import { randomId } from '../../utils/randomId'
 
 export const CUSTOM_PROTOCOL = 'openai_compatible' as const
 export type CustomProtocol = typeof CUSTOM_PROTOCOL
@@ -174,7 +175,7 @@ export function enabledOffers(draft: CustomProviderDraft): CustomModelOffer[] {
   return draft.models.filter(model => model.enabled && model.id.trim()).map(constrainOffer)
 }
 
-export function toConnection(draft: CustomProviderDraft, id: string = crypto.randomUUID()): Connection {
+export function toConnection(draft: CustomProviderDraft, id: string = randomId()): Connection {
   const key = draft.api_key.trim()
   return {
     id,

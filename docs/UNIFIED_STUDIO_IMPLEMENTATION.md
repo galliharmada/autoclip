@@ -52,6 +52,8 @@
 | 保存镜头/文案配置 | `PUT /{project_id}/drafts/{draft_id}` | 持久化整个草稿，校验版本、原片边界与时长 |
 | 独立语言/开头版本 | `POST /{project_id}/drafts/{draft_id}/duplicate` | 复制当前编辑快照，原稿与导出不变 |
 | 文案建议 | `POST /{project_id}/rewrite` | 返回建议，用户确认后才应用，不修改镜头 |
+| 片头建议（按画面） | `POST /{project_id}/hooks` | 读取已生成草稿自己的静帧，每条最多两句片头文字与各自的画面依据；不写草稿，用户确认后走 `PUT …/drafts/{draft_id}` |
+| 只处理一段 | `POST /import` 的 `source_window_start` / `source_window_end` | 原片时间轴上的绝对秒；画面分析与切片都限制在该段内，时间戳不重编号 |
 | 渲染当前草稿 | `POST /{project_id}/drafts/{draft_id}/export` | 前端提交所见 revision；不一致返回 409，防止导出其他窗口的新改稿 |
 | 播放/下载结果 | `GET /{project_id}/exports/{job_id}/video` | 完成后的真实 MP4；`download=true` 返回下载响应 |
 

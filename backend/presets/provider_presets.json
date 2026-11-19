@@ -701,6 +701,32 @@
         "language"
       ]
     },
+    "9router": {
+      "display_name": "9Router（本地）",
+      "ui_name": "9Router",
+      "short_name": "9Router",
+      "group": "local",
+      "protocol": "openai-completions",
+      "base_url": "http://localhost:20127/v1",
+      "auth": "api_key",
+      "docs_url": "https://github.com/hardianto77/9router",
+      "locked": false,
+      "default_model": "",
+      "api_key_setting": "9router_api_key",
+      "placeholder": "sk-…",
+      "hint": "自建的 9Router 网关，一个 Key 转发到 Claude / GPT / Gemini / Qwen / GLM 等多家模型。先在 9Router 控制台的 Endpoint & Key 里生成密钥，默认端口 20127。",
+      "local_app": "9Router",
+      "kind": "preset",
+      "candidates": {
+        "analysis": [],
+        "vision": [],
+        "asr": [],
+        "image": []
+      },
+      "capabilities": [
+        "language"
+      ]
+    },
     "openrouter": {
       "display_name": "OpenRouter",
       "short_name": "OpenRouter",

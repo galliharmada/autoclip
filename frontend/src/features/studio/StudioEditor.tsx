@@ -19,6 +19,7 @@ import { flagAssigned } from '../../analytics/flags'
 import { trackAutoChoiceOverridden } from '../../analytics/studio'
 import './studio.css'
 import { effectiveSubtitles } from './subtitleState'
+import { randomId } from '../../utils/randomId'
 
 export default function StudioEditor() {
   const { id, draftId } = useParams()
@@ -121,6 +122,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   }
 
   const [suggestion, setSuggestion] = useState<Draft | null>(null)
+  const [hookOptions, setHookOptions] = useState<{ hook: string; reason: string }[] | null>(null)
   const [undo, setUndo] = useState<Draft | null>(null)
   const video = useRef<HTMLVideoElement>(null)
   const localKey = `autoclip.studio.${projectId}.${draftId}`
@@ -190,6 +192,18 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     if (!draft || !instruction.trim()) return
     await perform('rewrite', async () => setSuggestion(await studioApi.rewrite(projectId, draft, instruction.trim())))
   }
+  /** Opening lines from this clip's own frames; only a chosen one touches the draft. */
+  const suggestHook = async () => {
+    if (!draft) return
+    await perform('hook', async () => {
+      const result = await studioApi.suggestHooks(projectId, [draft.id])
+      const mine = result.drafts.find(item => item.draft_id === draft.id) || result.drafts[0]
+      const options = mine?.hooks || []
+      if (!options.length) throw new Error(t('没有生成可用的片头文字，请重试或手动填写'))
+      if (options.length === 1) { setUndo(draft); patch({ hook: options[0].hook }); return }
+      setHookOptions(options)
+    })
+  }
   if (!draft) return <div className="ac-page"><button className="ac-back" onClick={() => navigate(`/project/${projectId}`)}>{t("‹ 返回项目")}</button><div className="ac-empty"><b>{loading ? t("加载成片草稿…") : t("无法打开草稿")}</b>{loadError || (!loading && t("草稿不存在或已移除"))}<Btn onClick={refresh}>{t("重试")}</Btn></div></div>
   const subtitlesOn = effectiveSubtitles(draft)
   const previewUrl = currentJob?.status === 'completed' ? studioApi.video(projectId, currentJob.job_id) : ''
@@ -227,7 +241,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       <DraftSettingsPanel draft={draft} patch={patch} scene={scene} currentTime={currentTime} onShot={setShot}
         framing={framing} onAutoFrame={() => void autoFrame()} onInstallFraming={() => void installFraming()} onPortrait={applyPortrait}
         coverHref={previewUrl && currentJob ? `/project/${projectId}/publish/studio-${currentJob.job_id}` : undefined}
-        onOpenCover={href => navigate(href)} /></div>
+        onOpenCover={href => navigate(href)}
+        onSuggestHook={() => void suggestHook()} suggestingHook={busy==='hook'} /></div>
     </fieldset>
     {active && <div className="studio-render-state"><ProgressLine percent={active.percent}/><span className="studio-muted">{active.status==='queued'?t("等待渲染"):t("渲染成片")} · {active.percent}%</span></div>}
     {currentJob?.status==='failed' && <p className="studio-error" role="alert">{t(currentJob.error || '')}</p>}
@@ -235,7 +250,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     {error && <p className="studio-error" role="alert">{error}</p>}<p className="studio-muted" role="status">{t(notice)}</p>
     {picker !== null && <CandidatePicker projectId={projectId} mode={picker === 'append' ? 'append' : 'replace'} onClose={() => setPicker(null)} onChoose={candidate => {
       try {
-        const next = applyCandidate(draft, candidate, picker, crypto.randomUUID())
+        const next = applyCandidate(draft, candidate, picker, randomId())
         setUndo(draft); patch({ scenes: next.scenes }); setSelected(picker === 'append' ? draft.scenes.length : picker)
         setPicker(null); setNotice("镜头已更新，请保存后重新渲染。换镜头后请核对开头文案是否仍符合画面。")
       } catch(e) { setPicker(null); setError(t(errorText(e))) }
@@ -244,6 +259,13 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       try { localStorage.removeItem(localKey) } catch { /* The new server draft is already durable. */ }
       navigate(`/project/${projectId}/studio/${created.id}`)
     }} />
+    <Dialog open={!!hookOptions} onClose={()=>setHookOptions(null)} title={t("从画面生成的片头")} description={t("只改片头文字，镜头与声音保持原设置。选一句应用。")} footer={<div className="studio-actions"><Btn onClick={()=>setHookOptions(null)}>{t("不用了")}</Btn></div>}>
+      {(hookOptions || []).map(option => <div key={option.hook} className="studio-hook-option">
+        <b>{option.hook}</b>
+        {option.reason && <p className="studio-muted">{option.reason}</p>}
+        <Btn size="sm" onClick={() => { setUndo(draft); patch({ hook: option.hook }); setHookOptions(null) }}>{t("用这句")}</Btn>
+      </div>)}
+    </Dialog>
     <Dialog open={!!suggestion} onClose={()=>setSuggestion(null)} title={t("查看文案修改")} description={t("确认后应用到当前草稿，镜头与声音保持原设置。")} footer={<div className="studio-actions"><Btn onClick={()=>setSuggestion(null)}>{t("保留原稿")}</Btn><Btn variant="cta" onClick={()=>{setUndo(draft);setDraft(suggestion);setSuggestion(null);setShowRendered(false)}}>{t("应用修改")}</Btn></div>}><p>{suggestion?.title}</p><p>{suggestion?.hook || t("无开头文字")}</p></Dialog>
     <Dialog open={showExport} onClose={()=>!busy && setShowExport(false)} title={t("导出成片")} description={t("保存当前修改并渲染；已有输出会保留在导出记录。")} footer={<div className="studio-actions"><Btn disabled={!!busy} onClick={()=>setShowExport(false)}>{t("关闭")}</Btn>{previewUrl && <Btn onClick={()=>navigate(`/project/${projectId}/publish/studio-${currentJob!.job_id}`)}>{t("发布这版成片")}</Btn>}{previewUrl ? <StudioDownloadLink className="ac-btn ac-btn--cta" projectId={projectId} jobId={currentJob!.job_id}/> : <Btn variant="cta" loading={busy==='render'||!!active} disabled={!!active} onClick={render}>{t("确认导出")}</Btn>}</div>}>
       <Row label={t("成片")}>{draft.title}</Row><Row label={t("格式")}>MP4 · 30 fps</Row><Row label={t("画幅")}>{draft.aspect==='portrait'?'1080 × 1920':draft.aspect==='landscape'?'1920 × 1080':t("保持原尺寸")}</Row><Row label={t("文字语言")}>{draft.language==='source' ? t('原语言') : languages.find(l=>l.value===draft.language)?.label}</Row>

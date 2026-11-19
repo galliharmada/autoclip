@@ -515,7 +515,12 @@ def inert_worker_services(project, monkeypatch):
     monkeypatch.setattr(planning, 'recommend', lambda *a: deepcopy(plan))
     monkeypatch.setattr(intelligence, 'ready', lambda: True)
     monkeypatch.setattr(intelligence, '_probe', lambda *a: {'duration': 1})
-    monkeypatch.setattr(jobs, 'analyze', lambda video, prefs, stage, *a: (stage('Synthetic analysis') or [], {}))
+    def analyze(video, prefs, stage=None, *a, **k):
+        if stage:
+            stage('Synthetic analysis')
+        return [], {}
+
+    monkeypatch.setattr(jobs, 'analyze', analyze)
     monkeypatch.setattr(jobs, 'make_drafts', lambda *a, **k: [])
     monkeypatch.setattr(jobs, 'run_content', lambda *a: [])
     monkeypatch.setattr(jobs, '_content_drafts', lambda *a: [project.draft.model_dump()])

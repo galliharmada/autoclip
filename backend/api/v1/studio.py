@@ -21,7 +21,7 @@ from backend.schemas.project import ProjectCreate, ProjectType
 from backend.services.project_service import ProjectService
 from backend.services.platform_strategy import list_platform_strategies
 from backend.services.studio import store, jobs, intelligence
-from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, ExportDraftRequest, RewriteRequest, Preferences, Language, Scene, ImportOptions, ConfirmPlan, AppendPlatformsRequest, PostCopy
+from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, ExportDraftRequest, RewriteRequest, HookRequest, Preferences, Language, Scene, ImportOptions, ConfirmPlan, AppendPlatformsRequest, PostCopy
 
 router = APIRouter()
 
@@ -749,6 +749,36 @@ def rewrite(project_id: str, body: RewriteRequest, db: Session = Depends(get_db)
         capture_studio_exception(error, 'rewrite')
         raise HTTPException(502, '生成文案失败，请检查模型设置后重试；原稿未改动') from None
     return candidate
+
+@router.post('/{project_id}/hooks')
+def suggest_hooks(project_id: str, body: HookRequest, db: Session = Depends(get_db)):
+    """Opening-title options for drafts that already exist, read from their own frames.
+
+    Nothing is saved: the editor applies a proposal through the normal draft save, so the
+    scenes, audio and cuts stay exactly as produced. One bounded vision call per draft.
+    """
+    project = project_or_404(project_id, db)
+    return _hook_proposals(project_id, project, body)
+
+
+def _hook_proposals(project_id: str, project, body: HookRequest):
+    from backend.services.studio.intelligence import VisionRequestError
+    drafts = call(store.read, project_id)['drafts']
+    if body.draft_ids:
+        wanted = set(body.draft_ids)
+        drafts = [draft for draft in drafts if draft.get('id') in wanted]
+        if len(drafts) != len(wanted):
+            raise HTTPException(404, '草稿不存在')
+    if not drafts:
+        raise HTTPException(404, '还没有可用的成片片段')
+    video = call(jobs.source, project_id)
+    prefs = Preferences.model_validate((project.processing_config or {}).get('creative', {}))
+    try:
+        return call(intelligence.suggest_hooks, video, drafts,
+                    instruction=body.instruction, language=prefs.language)
+    except VisionRequestError as error:
+        raise HTTPException(502, '画面理解模型调用失败，请检查模型设置后重试；已生成的片段未改动') from None
+
 
 @router.get('/{project_id}/subtitles')
 def subtitles(project_id: str, db: Session = Depends(get_db)):

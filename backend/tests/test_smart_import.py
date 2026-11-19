@@ -490,7 +490,7 @@ def test_multiple_choices_share_visual_analysis_and_require_confirmation(client,
     monkeypatch.setattr(intelligence,'ready',lambda:True)
     calls=[]
     monkeypatch.setattr(intelligence,'vision_call',lambda *a,**kw:{**recommendation(),'suggested_goals':['highlight','promo']})
-    monkeypatch.setattr(jobs,'analyze',lambda *a: calls.append('analysis') or ([Scene(id='e1',start=0,end=1)],{}))
+    monkeypatch.setattr(jobs,'analyze',lambda *a, **k: calls.append('analysis') or ([Scene(id='e1',start=0,end=1)],{}))
     def drafts(events,prefs,*args,**kwargs):
         calls.append(prefs.goal)
         from backend.services.studio.models import Draft
@@ -516,7 +516,7 @@ def test_unchecked_goal_is_never_produced(client,source,monkeypatch):
     monkeypatch.setattr(intelligence,'ready',lambda:True)
     calls=[]
     monkeypatch.setattr(intelligence,'vision_call',lambda *a,**kw:{**recommendation(),'suggested_goals':['highlight','promo']})
-    monkeypatch.setattr(jobs,'analyze',lambda *a: ([Scene(id='e1',start=0,end=1)],{}))
+    monkeypatch.setattr(jobs,'analyze',lambda *a, **k: ([Scene(id='e1',start=0,end=1)],{}))
     monkeypatch.setattr(jobs,'make_drafts',lambda events,prefs,*args,**kwargs:calls.append(prefs.goal) or [])
     response=client.post('/studio/import',files={'video':('input.mp4',source.read_bytes(),'video/mp4')})
     pid=response.json()['project_id'];state=client.get('/studio/'+pid).json()
@@ -543,7 +543,7 @@ def test_quick_screening_request_is_small_and_provider_scoped(monkeypatch,model,
 def test_awaiting_confirmation_survives_restart_without_production(client,source,monkeypatch):
     monkeypatch.setattr(jobs,'executor',Immediate())
     monkeypatch.setattr(intelligence,'ready',lambda:False)
-    monkeypatch.setattr(jobs,'analyze',lambda *a:pytest.fail('must await confirmation'))
+    monkeypatch.setattr(jobs,'analyze',lambda *a, **k:pytest.fail('must await confirmation'))
     response=client.post('/studio/import',files={'video':('input.mp4',source.read_bytes(),'video/mp4')})
     pid=response.json()['project_id']
     before=client.get('/studio/'+pid).json()
@@ -599,7 +599,7 @@ def test_shared_visual_failure_is_not_retried_for_second_goal(client,source,monk
     monkeypatch.setattr(jobs, 'capture_studio_exception', lambda error, phase, **kwargs: reports.append((error, phase)))
     failure=intelligence.VisionRequestError('rate_limited','请稍后重试',elapsed_seconds=2,http_status=429)
     failure.phase='scan'
-    def analyze(*args):
+    def analyze(*args, **kwargs):
         calls.append('scan')
         raise failure
     monkeypatch.setattr(jobs,'analyze',analyze)
@@ -629,7 +629,7 @@ def test_hook_failure_preserves_other_goal_and_does_not_repeat_analysis(client,s
     monkeypatch.setattr(intelligence,'ready',lambda:True)
     monkeypatch.setattr(intelligence,'vision_call',lambda *a,**kw:recommendation())
     calls=[]
-    monkeypatch.setattr(jobs,'analyze',lambda *a:calls.append('scan') or ([Scene(id='e1',start=0,end=1)],{'duration':1}))
+    monkeypatch.setattr(jobs,'analyze',lambda *a, **k:calls.append('scan') or ([Scene(id='e1',start=0,end=1)],{'duration':1}))
     def drafts(events,prefs,*a,**kw):
         calls.append(prefs.goal)
         if prefs.goal=='promo':
@@ -720,7 +720,7 @@ def test_confirm_matches_each_output_aspect_without_extra_analysis(
     monkeypatch.setattr(jobs,'mark_project',lambda *a,**kw:None)
     monkeypatch.setattr(intelligence,'ready',lambda:True)
     monkeypatch.setattr(intelligence,'vision_call',lambda *a,**kw:pytest.fail('paid call'))
-    def analyze(*args):
+    def analyze(*args, **kwargs):
         scans.append('visual')
         return [Scene(id='e',start=0,end=1)], {}
     def content(*args):

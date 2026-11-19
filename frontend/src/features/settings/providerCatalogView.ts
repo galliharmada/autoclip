@@ -8,6 +8,7 @@ import { getCatalog, getProvider, resolveProviderId, type ProviderGroupId, type 
 import { cleanBinding, newConnection, presetKey, endpointProviderReady } from './modelSettingsLogic'
 import type { Connection, ModelSettings } from './modelSettingsApi'
 import { syncFollowingCover } from './modelDefaults'
+import { randomId } from '../../utils/randomId'
 
 export type CapabilityFilter = 'all' | 'language' | 'asr' | 'tts' | 'image' | 'music' | 'video'
 export type CatalogConnectKind = 'legacy' | 'local_asr' | 'compatible' | 'guide' | 'needs_endpoint'
@@ -177,7 +178,7 @@ export function ensureCatalogConnection(
   settings: ModelSettings,
   preset: ProviderPreset,
   createLegacy: (provider: ProviderKey) => Connection = newConnection,
-  createId: () => string = () => crypto.randomUUID(),
+  createId: () => string = randomId,
 ): { settings: ModelSettings; connection?: Connection; changed: boolean } {
   const kind = connectKind(preset)
   if (kind === 'local_asr' || (kind === 'guide' && preset.base_url)) return { settings, changed: false }

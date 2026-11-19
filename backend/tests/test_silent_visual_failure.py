@@ -23,7 +23,7 @@ def visual(tmp_path, monkeypatch):
 
 
 def _analyze_raises(monkeypatch, jobs, error):
-    def analyze(video, prefs):
+    def analyze(video, prefs, *args, **kwargs):
         raise error
     monkeypatch.setattr(jobs, 'analyze', analyze)
 
@@ -73,7 +73,7 @@ def test_vision_model_errors_are_not_relabelled(visual, monkeypatch):
 
 def test_silent_source_with_usable_visual_result_still_succeeds(visual, monkeypatch):
     jobs, video, plan, calls = visual
-    monkeypatch.setattr(jobs, 'analyze', lambda video, prefs: ([], {'duration': 45.0}))
+    monkeypatch.setattr(jobs, 'analyze', lambda video, prefs, *a, **k: ([], {'duration': 45.0}))
     monkeypatch.setattr(media_precheck, 'has_audio', lambda v: pytest.fail('only probed on failure'))
     drafts, events, coverage = jobs._content_drafts('p', plan, video)
     assert calls == ['drafts'] and events == [] and coverage == {'duration': 45.0}

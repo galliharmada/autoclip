@@ -210,7 +210,7 @@ def test_visual_import_worker_persists_project_status(client,root,source,monkeyp
     from backend.core.database import SessionLocal
     from backend.models.project import Project, ProjectStatus
     monkeypatch.setattr(intelligence,'ready',lambda:True)
-    monkeypatch.setattr(jobs,'analyze',lambda *a: ([Scene(id='e1',label='真实事件',start=0,end=1)],{}))
+    monkeypatch.setattr(jobs,'analyze',lambda *a,**k: ([Scene(id='e1',label='真实事件',start=0,end=1)],{}))
     class Immediate:
         def submit(self,fn,*args,**kwargs): fn(*args,**kwargs)
     monkeypatch.setattr(jobs,'executor',Immediate())

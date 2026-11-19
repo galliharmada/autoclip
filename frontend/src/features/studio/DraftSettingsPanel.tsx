@@ -22,7 +22,7 @@ export interface FramingState {
  * Top to bottom: name → subtitles (whole clip) → audio → frame + speaker framing → opening title
  * (optional, folded) → text language → cover. Everything has a working default.
  */
-export default function DraftSettingsPanel({ draft, patch, scene, currentTime, onShot, framing, onAutoFrame, onInstallFraming, onPortrait, coverHref, onOpenCover }: {
+export default function DraftSettingsPanel({ draft, patch, scene, currentTime, onShot, framing, onAutoFrame, onInstallFraming, onPortrait, coverHref, onOpenCover, onSuggestHook, suggestingHook }: {
   draft: Draft
   patch: (changes: Partial<Draft>) => void
   /** Scene currently shown in the preview; the framing slider edits this one. */
@@ -36,6 +36,9 @@ export default function DraftSettingsPanel({ draft, patch, scene, currentTime, o
   onPortrait: () => void
   coverHref?: string
   onOpenCover: (href: string) => void
+  /** Ask the vision model for opening lines from this clip's own frames. */
+  onSuggestHook?: () => void
+  suggestingHook?: boolean
 }) {
   const artwork = isArtworkStyle(draft.title_style)
   const style = draft.title_style || 'plain'
@@ -108,6 +111,7 @@ export default function DraftSettingsPanel({ draft, patch, scene, currentTime, o
         <summary>{t("片头文字（可选）")}</summary>
         <Row stack label={t("片头文字")} hint={t("在第一个镜头上显示最多 4 秒的大字，适合游戏、推广类内容；访谈、讲解可以留空。")}>
           <textarea className="ac-input ac-textarea" style={{ minHeight: 56 }} aria-label={t("片头标题文字")} maxLength={120} value={draft.hook} placeholder={t("例如：一个问题，或一句结论")} onChange={e => patch({ hook: e.target.value })} />
+          {onSuggestHook && <Btn size="sm" loading={suggestingHook} disabled={suggestingHook} onClick={onSuggestHook}>{t("按画面生成片头")}</Btn>}
         </Row>
         {!!draft.hook.trim() && <>
           <Row stack label={t("片头样式")} hint={t("缩略图为设计参考，实际文字效果见左侧预览。")}>

@@ -218,6 +218,13 @@ class RewriteRequest(BaseModel):
     draft: Draft
     instruction: str = Field(min_length=1, max_length=2000)
 
+
+class HookRequest(BaseModel):
+    """Which generated drafts get opening-title proposals; empty means all of them."""
+    model_config = ConfigDict(extra='forbid')
+    draft_ids: list[str] = Field(default_factory=list, max_length=20)
+    instruction: str = Field(default='', max_length=500)
+
 class DuplicateDraft(BaseModel):
     model_config = ConfigDict(extra='forbid')
     draft: Draft

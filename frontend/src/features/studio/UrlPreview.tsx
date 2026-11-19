@@ -6,7 +6,8 @@ import {
   type PreviewRouteKind,
 } from './importReadiness'
 import { VISUAL_SOURCE_TOO_LONG_MESSAGE } from './planningCopy'
-import { FIRST_WINDOW_END_SEC } from './types'
+import SourceWindowPicker, { effectiveDuration } from './SourceWindowPicker'
+import { FIRST_WINDOW_END_SEC, type SourceWindow } from './types'
 
 export type UrlInspectPreview = {
   title?: string | null
@@ -85,6 +86,8 @@ export default function UrlPreview({
   onDismiss,
   confirmLabel,
   suggestFirstWindow,
+  window,
+  onWindowChange,
 }: {
   preview: UrlInspectPreview | null
   loading?: boolean
@@ -97,6 +100,9 @@ export default function UrlPreview({
   onDismiss?: () => void
   confirmLabel?: string
   suggestFirstWindow?: boolean
+  /** Optional range on the original timeline: only this part is scanned, transcribed and cut. */
+  window?: SourceWindow | null
+  onWindowChange?: (window: SourceWindow | null) => void
 }) {
   if (loading) {
     return <div className="studio-url-preview" data-testid="url-preview-loading" role="status">
@@ -104,7 +110,9 @@ export default function UrlPreview({
     </div>
   }
   if (!preview) return null
-  const eta = totalEtaLine(preview.duration ?? null, preview.preview_route)
+  // A chosen range is what actually gets billed and cut, so the estimate follows it, not the file.
+  const processed = effectiveDuration(window, preview.duration ?? null)
+  const eta = totalEtaLine(processed, preview.preview_route)
   const showFirstWindow = Boolean(suggestFirstWindow && onConfirmFirstWindow && onConfirmFull)
   return (
     <div className="studio-url-preview" data-testid="url-preview" role="region" aria-label={t('视频预览')}>
@@ -124,6 +132,7 @@ export default function UrlPreview({
           )}
         </div>
       </div>
+      {onWindowChange && <SourceWindowPicker window={window} durationSec={preview.duration ?? null} onChange={onWindowChange} />}
       {showFirstWindow && (
         <div className="studio-first-window" role="status" data-testid="t2-first-window-prompt">
           <p className="studio-muted">{t('第一次建议先试 30 分钟以内，确认模型配置没问题')}</p>
