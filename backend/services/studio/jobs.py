@@ -496,6 +496,10 @@ def download(project_id, url, browser, import_options=None):
         meta['source_height'] = height
     if _fetch_platform_subtitles(url, options, info, folder):
         meta['subtitle_source'] = 'platform'
+    from backend.services.studio import stream_chat
+    chat = stream_chat.fetch_chat(url, info, options, folder)  # never raises; moment signal for stream clips
+    if chat['messages']:
+        meta['chat_source'], meta['chat_messages'] = chat['source'], chat['messages']
     store.change(project_id, lambda data: data.update(source_meta=meta))
     from backend.core.database import SessionLocal
     from backend.models.project import Project

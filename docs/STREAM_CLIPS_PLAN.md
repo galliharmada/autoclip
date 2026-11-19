@@ -105,26 +105,26 @@ existing single-window code once per window, then merges drafts. Don't change th
 Legend: `[ ]` todo · `[~]` in progress (put the agent and date next to it) · `[x]` done (add the commit SHA).
 
 ### Phase 0 — Setup
-- [ ] **T0.1** Resolve the uncommitted T2 work with the owner (see Branching). Create `feat/stream-clips`.
-- [ ] **T0.2** Baseline: `python scripts/quality_gate.py --group all --report /tmp/qg-baseline.json`.
+- [x] **T0.1** Resolve the uncommitted T2 work with the owner (see Branching). Create `feat/stream-clips`.
+- [~] **T0.2** Baseline: `python scripts/quality_gate.py --group all --report /tmp/qg-baseline.json`.
   Record pass/fail counts in the Progress log so later failures can be told apart from existing ones.
 - [ ] **T0.3** Get test media: one short (10–20 min) Twitch or YouTube VOD **with chat**, and one ≥3 h VOD.
   Store them outside the repo (`~/autoclip-testdata/`) and note the URLs in the Progress log (no media in git).
 
 ### Phase 1 — Chat ingest
-- [ ] **T1.1** Chat format + parser. New `backend/services/studio/stream_chat.py`:
+- [x] **T1.1** Chat format + parser. New `backend/services/studio/stream_chat.py`:
   `load_chat(path) -> list[tuple[float, str]]` (seconds from video start, message text).
   Canonical file: `raw/chat.jsonl`, one `{"t": 12.3, "text": "KEKW"}` per line.
   Tests: `backend/tests/test_stream_chat.py` covering valid lines, a malformed line skipped,
   unsorted input sorted, negative or non-finite `t` dropped, empty file → `[]`.
-- [ ] **T1.2** YouTube chat. In `jobs.download()`, when the info dict says `was_live` / `live_status` is
+- [x] **T1.2** YouTube chat. In `jobs.download()`, when the info dict says `was_live` / `live_status` is
   `was_live` or `post_live`, also request yt-dlp subtitle `live_chat` (no new dependency). Convert
   `input.live_chat.json` to `chat.jsonl` using `videoOffsetTimeMsec`. Failure = warning only.
   Test with a small fixture JSON (no network) in `test_stream_chat.py`.
-- [ ] **T1.3** Twitch chat **spike first** (≤1 h). Check whether yt-dlp `2026.8.19` still exposes Twitch
+- [x] **T1.3** Twitch chat **spike first** (≤1 h). Check whether yt-dlp `2026.8.19` still exposes Twitch
   `rechat`. If it does, use it as in T1.2. If not, add `chat-downloader` as an **on-demand install**
   following the `framing.start_install` pattern. Write the finding in the Progress log before you build it.
-- [ ] **T1.4** Record `chat_source` (`youtube` / `twitch` / `none`) and message count in `source_meta`.
+- [x] **T1.4** Record `chat_source` (`youtube` / `twitch` / `none`) and message count in `source_meta`.
 
 **Phase 1 acceptance:** downloading the T0.3 short VOD produces `raw/chat.jsonl` with a plausible message count;
 a VOD without chat still downloads and imports exactly as before (regression test).
@@ -227,5 +227,10 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 ## 7. Progress log
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
+
+- 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 1 done (T1.1–T1.4). Spike T1.3: yt-dlp 2026.08.19 has **no Twitch chat**; YouTube `live_chat`
+  works. Twitch uses `chat-downloader` (0.2.8) installed on demand into `<data>/chat-runtime` (best-effort; untested against live Twitch).
+  Source type gate is `subtitles.live_chat` (more reliable than `live_status`). 13 new tests pass. T0.1 done: pre-existing work committed as `e609d4b8`.
+  T0.2 baseline in progress (full backend run). T0.3 (real test VODs) still open: needs the owner's URLs.
 
 - 2026-11-19 · Claude Code (Opus 5.5) · plan written after reading the repo on gangnamPC · no code changes.
