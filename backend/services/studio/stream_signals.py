@@ -177,7 +177,7 @@ def parse_ebur128(lines, duration: float) -> list[float]:
 def loudness_series(video: Path, duration: float, timeout: float = LOUDNESS_TIMEOUT) -> list[float]:
     """Streamed through ffmpeg so an 8 h file never sits in memory. Empty on any failure."""
     from backend.utils.ffmpeg_utils import get_ffmpeg_path
-    cmd = [get_ffmpeg_path(), '-hide_banner', '-nostats', '-i', str(video), '-vn', '-af', 'aresample=16000,ebur128=framelog=verbose', '-f', 'null', '-']
+    cmd = [get_ffmpeg_path(), '-hide_banner', '-nostats', '-i', str(video), '-vn', '-af', 'aresample=16000,ebur128=framelog=info', '-f', 'null', '-']
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors='replace')
     except OSError as error:

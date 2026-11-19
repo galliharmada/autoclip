@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from backend.core.failure_codes import UserFacingError
-from backend.services.studio import stream_chat, stream_signals
+from backend.services.studio import stream_chat, stream_signals, stream_transcript
 from backend.services.studio.models import Draft, Scene
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,17 @@ def drafts(plan: dict, video: Path, *, top_n: int = 8) -> list[dict]:
     windows = stream_signals.score_source(video, Path(video).parent / stream_chat.CHAT_FILE, duration, top_n=top_n)
     if not windows:
         raise UserFacingError('没有找到明显的直播高光：聊天记录和音量都没有突出的片段。请确认已下载聊天，或换一段素材')
+    try:
+        cues = stream_transcript.transcribe_windows(video, windows, Path(video).parent)
+    except Exception as error:  # noqa: BLE001 - captions are optional; the clips still render
+        logger.warning('Stream transcription skipped: %s', type(error).__name__)
+        cues = []
     out = []
     for window in windows:
+        start, end = stream_transcript.snap(window.start, window.end, cues, duration)
         why = '、'.join(REASON_TEXT[r] for r in window.reasons if r in REASON_TEXT) or '综合热度'
-        scene = Scene(id=uuid.uuid4().hex, label=f'直播高光 {_clock(window.peak)}'[:120], start=window.start,
-                      end=min(window.end, duration), evidence=f'依据：{why}（热度 {window.score:.1f}）')
+        scene = Scene(id=uuid.uuid4().hex, label=f'直播高光 {_clock(window.peak)}'[:120], start=start,
+                      end=end, evidence=f'依据：{why}（热度 {window.score:.1f}）')
         out.append({**Draft(
             id=uuid.uuid4().hex, title=scene.label, scenes=[scene], origin='auto-stream',
             language=prefs.get('language', 'source'), aspect=prefs.get('aspect', 'original'),

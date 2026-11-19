@@ -160,12 +160,12 @@ a VOD without chat still downloads and imports exactly as before (regression tes
 real moments (record the judgement in the Progress log). The pre-pass takes <10 min on gangnamPC.
 
 ### Phase 3 — Windowed transcription
-- [ ] **T3.1** Transcribe only the windows: cut the window audio with ffmpeg (`-ss/-t`, 16 kHz mono),
+- [x] **T3.1** Transcribe only the windows: cut the window audio with ffmpeg (`-ss/-t`, 16 kHz mono),
   run the existing recogniser, then shift every segment and word time by `window.start`. Write a merged
   SRT + `.words.json` sidecar that `word_timing.py` accepts (same hash/validation rules).
-- [ ] **T3.2** Tests: offset shifting is exact; overlapping windows don't duplicate cues; the sidecar
+- [x] **T3.2** Tests: offset shifting is exact; overlapping windows don't duplicate cues; the sidecar
   validates; a window whose ASR fails is skipped while the others continue.
-- [ ] **T3.3** Default ASR model on 4 GB VRAM: Whisper `small` int8 (or what `whisper_runtime` already
+- [x] **T3.3** Default ASR model on 4 GB VRAM: Whisper `small` int8 (or what `whisper_runtime` already
   picks for low VRAM). Don't add a new model picker.
 
 **Phase 3 acceptance:** captions on stream clips line up within ±0.3 s (spot-check 3 clips by eye) and the
@@ -227,6 +227,15 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 ## 7. Progress log
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
+
+- 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 3 done (T3.1–T3.3). `stream_transcript.py`: cut each window to 16 kHz mono wav, recognise with the
+  existing `SpeechRecognizer().generate_subtitle`, shift cues and word times by the window start, write merged `raw/input.srt` + word sidecar
+  (sidecar only when every window produced valid words, else sentence captions). An existing `input.srt` (platform/user) is reused and ASR is skipped.
+  Window edges snap to sentence edges within 8 s. T3.3: no new model picker; the recogniser's configured default is used.
+  **Bug found by a real-ffmpeg run and fixed (Phase 2 code):** ffmpeg 8.1 prints no `ebur128` frame lines with `framelog=verbose` at the default
+  log level; use `framelog=info`. A real-ffmpeg regression test now guards this. Real ASR was NOT run (only the audio cut was verified with real ffmpeg);
+  Phase 3 acceptance (±0.3 s on 3 real clips) stays open until T0.3 media + a configured Whisper exist. Known limit: delete `raw/input.srt` to
+  re-transcribe after changing `top_n`.
 
 - 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 2 done (T2.1–T2.6). **Deviations from the plan text (intentional, simpler):**
   (a) the stream route does **not** call the vision `analyze()` per window; drafts come straight from the windows

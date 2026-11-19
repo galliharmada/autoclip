@@ -131,3 +131,21 @@ def test_score_source_without_chat_uses_audio_only(tmp_path):
 
 def test_score_source_no_signals_is_empty(tmp_path):
     assert ss.score_source(tmp_path / 'v.mp4', tmp_path / 'none.jsonl', 900, loudness=lambda v, d: []) == []
+
+
+def test_loudness_series_real_ffmpeg_finds_the_loud_burst(tmp_path):
+    """ffmpeg only prints ebur128 frame lines for framelog=info; this guards the real output format."""
+    import shutil
+    import subprocess
+    from backend.utils.ffmpeg_utils import get_ffmpeg_path
+    ff = get_ffmpeg_path()
+    if not (shutil.which(ff) or __import__('os').path.exists(ff)):
+        pytest.skip('ffmpeg not available')
+    wav = tmp_path / 'burst.wav'
+    subprocess.run([ff, '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=40,volume=0.03',
+                    '-f', 'lavfi', '-i', 'sine=frequency=880:duration=4,volume=0.9,adelay=20000|20000',
+                    '-filter_complex', 'amix=inputs=2:duration=first:normalize=0', str(wav)], check=True, timeout=60)
+    series = ss.loudness_series(wav, 40)
+    assert len(series) >= 40 and max(series[20:24]) > max(series[:15]) + 15
+    wins = ss.score_source(wav, tmp_path / 'none.jsonl', 40)
+    assert wins and wins[0].reasons == ['audio'] and wins[0].start <= 20 <= wins[0].end
