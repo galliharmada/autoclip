@@ -75,6 +75,25 @@ async def _stage_for_gate(video, first_chunk, ext, *, srt_available: bool, route
         raise
     return staged
 
+async def _read_chat_upload(chat):
+    """Rows of an uploaded stream chat file; anything unusable is refused before a project exists."""
+    import tempfile
+    from backend.services import quick_output_runner
+    from backend.services.studio import stream_chat
+    data = await chat.read(quick_output_runner.MAX_CHAT_BYTES + 1)
+    if not data or len(data) > quick_output_runner.MAX_CHAT_BYTES:
+        raise HTTPException(422, '聊天记录文件为空或超过 50 MB')
+    with tempfile.NamedTemporaryFile(suffix='.chat', delete=False) as tmp:
+        tmp.write(data)
+    try:
+        rows = stream_chat.load_any(Path(tmp.name))
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
+    if not rows:
+        raise HTTPException(422, '聊天记录里没有可用消息：每行应为 {"t": 秒, "text": "内容"}，或 yt-dlp 的 live_chat 文件')
+    return rows
+
+
 @router.get('/title-presets/{style}/thumbnail')
 def title_preset_thumbnail(style: Literal['comic', 'neon', 'arena', 'editorial', 'pixel', 'frosted'], v: int = Query(1, ge=1, le=6)):
     from backend.services.studio.title_art import thumbnail
@@ -247,6 +266,9 @@ async def import_visual(
     source_window_start: Optional[float] = Form(None, ge=0),
     source_window_end: Optional[float] = Form(None, gt=0),
     stream: bool = Form(False),
+    stream_top: int = Form(8, ge=1, le=20),
+    stream_layout: Literal['auto', 'stack', 'crop'] = Form('auto'),
+    chat: Optional[UploadFile] = File(None),
     features: str = Form(''),
     db: Session = Depends(get_db),
 ):
@@ -262,6 +284,13 @@ async def import_visual(
     ext = Path(video.filename or '').suffix.lower() if video else '.mp4'
     if ext not in ('.mp4', '.mov', '.mkv', '.webm', '.avi'):
         raise HTTPException(422, '不支持的视频格式')
+    chat_rows = None
+    if chat is not None:
+        try:
+            if stream:
+                chat_rows = await _read_chat_upload(chat)
+        finally:
+            await chat.close()
     first_chunk = await video.read(1024 * 1024) if video else None
     if video and not first_chunk:
         await video.close()
@@ -280,7 +309,7 @@ async def import_visual(
     if video:
         # 1.5.7: block before creating a project when local Whisper is required but missing.
         try:
-            staged = await _stage_for_gate(video, first_chunk, ext, srt_available=subtitle_bytes is not None, goal=goal)
+            staged = await _stage_for_gate(video, first_chunk, ext, srt_available=subtitle_bytes is not None or stream, goal=goal)  # a stream is clipped by chat and sound, not a transcript
         except HTTPException:
             await video.close()
             raise
@@ -296,7 +325,7 @@ async def import_visual(
             platforms=platforms, auto_start=auto_start, portrait_style=portrait_style, html_template=html_template,
             recommended_template=recommended_template,
             branding={'outro_enabled': brand_outro_enabled},
-            source_window=source_window, stream=stream,
+            source_window=source_window, stream=stream, stream_top=stream_top, stream_layout=stream_layout,
         )
         project = ProjectService(db).create_project(ProjectCreate(name=name.strip() or '智能剪辑', project_type=ProjectType.DEFAULT, source_url=url, settings={'creative': {'goal': goal}, 'smart_import': prefs.model_dump(), 'import_staging': not prefs.auto_start, 'creative_browser': browser, 'platforms': prefs.platforms, 'brand_outro_enabled': prefs.branding.outro_enabled}))
     except BaseException:
@@ -308,6 +337,9 @@ async def import_visual(
         # mkdir inside the try: a failure here still runs the staging cleanup below.
         raw = store.directory(pid) / 'raw'
         raw.mkdir(parents=True, exist_ok=True)
+        if chat_rows:
+            from backend.services.studio import stream_chat
+            stream_chat.write_chat(raw / stream_chat.CHAT_FILE, chat_rows)
         if subtitle_bytes is not None:
             (raw / 'input.srt').write_bytes(subtitle_bytes)
             if not video:

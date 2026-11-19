@@ -144,7 +144,7 @@ test('#481 import expands the browser picker and keeps the chosen browser on sub
       './settingsReturn': { SETTINGS_SAVED_EVENT: 'autoclip:model-settings-saved' },
       '../settings/OutputCaptionsSetting': { OutputCaptionsSwitch: () => null },
       './UrlPreview': { default: 'url-preview', shouldSuggestFirstWindow: () => false },
-    './studio.css': {}, './quick-output.css': {},
+    './studio.css': {}, './quick-output.css': {}, './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
     }
     const sandbox = {
       window, document: window.document, navigator: window.navigator, HTMLElement: window.HTMLElement,
@@ -217,7 +217,7 @@ test('#481 a normal import keeps the browser picker inside the closed preference
       './settingsReturn': { SETTINGS_SAVED_EVENT: 'autoclip:model-settings-saved' },
       '../settings/OutputCaptionsSetting': { OutputCaptionsSwitch: () => null },
       './UrlPreview': { default: 'url-preview', shouldSuggestFirstWindow: () => false },
-    './studio.css': {}, './quick-output.css': {},
+    './studio.css': {}, './quick-output.css': {}, './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
     }
     const sandbox = { window, document: window.document, navigator: window.navigator, HTMLElement: window.HTMLElement, FormData: window.FormData, URL: window.URL, sessionStorage: window.sessionStorage, Promise, setTimeout, clearTimeout }
     const CreativeImport = loadStudio('CreativeImport.tsx', mocks, sandbox).default

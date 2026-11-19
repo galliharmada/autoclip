@@ -47,6 +47,11 @@ def load_chat(path: Path) -> list[tuple[float, str]]:
     return rows
 
 
+def load_any(path: Path) -> list[tuple[float, str]]:
+    """A user-supplied chat file: our canonical JSONL, or yt-dlp's `live_chat` JSON of a finished stream."""
+    return load_chat(path) or parse_youtube_live_chat(path)
+
+
 def write_chat(path: Path, messages: list[tuple[float, str]]) -> None:
     rows = sorted(messages, key=lambda row: row[0])
     Path(path).write_text(''.join(json.dumps({'t': t, 'text': text}, ensure_ascii=False) + '\n' for t, text in rows), encoding='utf-8')

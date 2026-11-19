@@ -228,6 +228,22 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
 
+- 2026-11-19 · Claude Code (Sonnet 5.5) · **Phase 8: stream mode in the web import page** (not in the original plan; owner request).
+  Frontend: `StreamModePanel.tsx` (checkbox 「直播回放模式」, number of highlights 1-20, framing auto/stack/crop, optional chat upload for local files),
+  wired into `CreativeImport.tsx`; `streamFormFields()` adds `stream`, `stream_top`, `stream_layout` to the form only when the mode is on; a stream never
+  waits for local transcription (`transcriptNotRequired`) and never shows the first-30-minutes tip or the time-range picker; a Twitch link is recognised
+  (`importUrlKind` -> `twitch`) and switches the mode on by itself. 6 new strings x 8 locales. Backend: `POST /studio/import` accepts `stream_top`,
+  `stream_layout` and `chat` (JSONL or yt-dlp live_chat; <=50 MB; unusable -> 422 before any project exists; ignored without `stream`) and writes
+  `raw/chat.jsonl`; the upload transcription gate no longer blocks a stream. **Verified on a real isolated instance** (vite + uvicorn on gangnamPC,
+  data dir in /tmp, browsed from the Mac): toggle shows the options, typing a Twitch link switches it on, and a real `curl` upload of the 465 s sample +
+  chat with `stream_top=3 stream_layout=stack` produced 3 `stack` drafts with the facecam rect and clips rendering. Not done: a click-through submit in the
+  browser (the instance had no model configured, which blocks the form), and the toggle is not remembered between visits.
+  **Pitfalls found:** (1) Node 26 prints a `module.register()` DeprecationWarning that the frontend test setup treats as a "swallowed error", failing
+  the first test of every file: run frontend tests with `NODE_OPTIONS=--no-deprecation` (that is why the earlier "117 failing" count was noise; with the flag
+  16 tests fail on clean HEAD and the same 16 after this change). (2) The import-page tests mock `useState` positionally and list every import of
+  `CreativeImport.tsx`, so a new `useState` there breaks them: the chat file lives in a `useRef`, and the new module was added to the 6 mock maps.
+  (3) vm-sandbox tests compare arrays across realms: wrap with JSON before `deepEqual`.
+
 - 2026-11-19 · Claude Code (Sonnet 5.5) · **First real-footage run** (T0.3/T7.2 partial). Sample given by the owner was a **running live stream**
   (IShowSpeed, GTA VI, 1280x720 facecam bottom-left), not a VOD. A VOD does not exist yet, so I recorded 600 s of it with ffmpeg and captured its
   live chat with `yt-dlp --write-subs --sub-langs live_chat` for the same period (harness scripts live in `~/autoclip-testdata/`, not in the repo), cut

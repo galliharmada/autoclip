@@ -43,7 +43,7 @@ def start(source: str, platforms: list[str], *, name: str | None = None, srt_pat
         chat = Path(chat_path).expanduser().resolve()
         if not chat.is_file() or not 0 < chat.stat().st_size <= MAX_CHAT_BYTES:
             raise ValueError('聊天记录文件不存在、为空或超过 50 MB')
-        if not stream_chat.load_chat(chat):
+        if not stream_chat.load_any(chat):
             raise ValueError('聊天记录里没有可用消息：每行应为 {"t": 秒, "text": "内容"}')
     parsed = urlparse(source)
     url = None

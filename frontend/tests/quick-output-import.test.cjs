@@ -39,6 +39,7 @@ test('quick import submits platform targets, branding and auto-starts to results
   './importPreferencesStore':{readImportPreferences:()=>null},
   './types':{defaultImportOptions:{goal:'auto',language:'source',aspect:null,duration:null,instruction:''}},
   './ImportPreferences':{default:'preferences'},'../../services/api':{speechApi:{installRuntime:async()=>({started:true,message:''})}},
+  './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
   './importReadiness':loadReadiness(),'./browserCookieRecovery':require('./load-ts.cjs').loadTs(path.join(__dirname,'../src/features/studio/browserCookieRecovery.ts')),'./settingsReturn':{SETTINGS_SAVED_EVENT:'autoclip:model-settings-saved'},'./TranscriptionGatePrompt':{default:'transcription-gate'},'./transcriptionRecovery':{isRecoveryCode:c=>['whisper_not_installed','whisper_install_failed','whisper_model_missing','whisper_model_failed','whisper_installing','whisper_model_downloading'].includes(c)},'./useTranscriptionRecovery':{useTranscriptionRecovery:()=>[{phase:'idle',percent:null},{open:(c)=>{(globalThis.__recoveryOpened||(globalThis.__recoveryOpened=[])).push(c)},close(){},install:async()=>{},retry:async()=>{}}]},'./studio.css':{},'./quick-output.css':{},
   '../settings/OutputCaptionsSetting':{OutputCaptionsSwitch:()=>null},
   './ImportSetupCard':{default:()=>null},
@@ -380,7 +381,7 @@ async function mountImport(window, React, h, calls, options = {}) {
     './transcriptionRecovery': { isRecoveryCode: () => false, probeConfig: () => ({}) },
     './useTranscriptionRecovery': { useTranscriptionRecovery: () => [{ phase: 'idle', percent: null }, { open() {}, close() {}, install: async () => {}, retry: async () => {} }] },
     '../settings/OutputCaptionsSetting': { OutputCaptionsSwitch: () => null },
-    './studio.css': {}, './quick-output.css': {},
+    './studio.css': {}, './quick-output.css': {}, './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
   }
   function load(file) {
     const abs = path.join(studioDir, file)

@@ -143,7 +143,7 @@ function studioMocks(templates) {
     './pasteStart': { claimBackgroundWhisperInstall: () => false, importUrlKind: text => { try { const u = new URL(String(text||'').trim()); if (u.protocol!=='https:') return null; const h=u.hostname.toLowerCase(); if (h==='youtu.be'||h==='youtube.com'||h.endsWith('.youtube.com')) return 'youtube'; if (h==='b23.tv'||h==='bilibili.com'||h.endsWith('.bilibili.com')) return 'bilibili'; return null } catch { return null } }, isVideoFile: () => true, shouldArmAutostart: () => false, shouldAutoStart: () => false, shouldBackgroundInstallWhisper: () => false, UNDO_MS: 3000 },
     './importPreferencesStore': { readImportPreferences: () => null },
     './UrlPreview': { default: 'url-preview', shouldSuggestFirstWindow: () => false },
-    './studio.css': {}, './quick-output.css': {},
+    './studio.css': {}, './quick-output.css': {}, './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
     '../settings/OutputCaptionsSetting': captionsModule,
   }
 }

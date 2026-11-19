@@ -172,6 +172,8 @@ export interface ImportOptions {
   portrait_style?: 'auto' | 'interview' | 'podcast'
   html_template?: 'editorial' | 'street' | 'news' | 'cinema' | 'classic'
   source_window?: SourceWindow | null
+  /** Long stream replay: highlights come from chat and sound, not from a model or the full transcript. */
+  stream?: boolean; stream_top?: number; stream_layout?: 'auto' | 'stack' | 'crop'
 }
 
 /** T2: first-success devices are nudged to process only the first 30 minutes. */

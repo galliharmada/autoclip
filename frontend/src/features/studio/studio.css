@@ -145,3 +145,10 @@
 
 .studio-first-window{margin:12px 0 0;padding:10px 12px;border:1px solid var(--ac-line);border-radius:10px;background:var(--ac-bg, #f8fafc)}
 .studio-first-window .studio-muted{margin:0}
+
+/* Stream replay mode (import page) */
+.studio-stream-mode { display: flex; flex-direction: column; gap: 8px; }
+.studio-check input[type="checkbox"] { accent-color: var(--ac-accent); }
+.studio-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; }
+.studio-stream-options { display: flex; flex-direction: column; gap: 12px; padding-left: 24px; }
+.studio-stream-options input[type="number"] { width: 96px; }

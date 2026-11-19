@@ -1533,7 +1533,7 @@ function mount({ readiness, importImpl, dropZone = false, autostart = false, spe
     './pasteStart': { claimBackgroundWhisperInstall: () => false, importUrlKind: text => /^https:/.test(text || '') ? 'youtube' : null, isVideoFile: () => true, shouldArmAutostart: () => false, shouldAutoStart: () => false, shouldBackgroundInstallWhisper: () => false, UNDO_MS: 3000, ...pasteStart },
     './importPreferencesStore': { readImportPreferences: () => null },
     './UrlPreview': { default: 'url-preview', shouldSuggestFirstWindow: () => false },
-    './studio.css': {}, './quick-output.css': {},
+    './studio.css': {}, './quick-output.css': {}, './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
     '../settings/OutputCaptionsSetting': { OutputCaptionsSwitch: () => null },
   }
   // with autostart the real pasteStart decides, so a global paste really reaches arm and its lock.

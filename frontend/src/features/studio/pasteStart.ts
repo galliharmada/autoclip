@@ -5,7 +5,7 @@ export type StartTrigger = 'paste' | 'drop' | 'button'
 
 const VIDEO = /\.(mp4|mov|mkv|webm|avi)$/i
 
-export function importUrlKind(text: string): 'youtube' | 'bilibili' | null {
+export function importUrlKind(text: string): 'youtube' | 'bilibili' | 'twitch' | null {
   const value = text.trim()
   if (!value || /\s/.test(value)) return null
   try {
@@ -14,6 +14,7 @@ export function importUrlKind(text: string): 'youtube' | 'bilibili' | null {
     const host = url.hostname.toLowerCase()
     if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube'
     if (host === 'b23.tv' || host === 'bilibili.com' || host.endsWith('.bilibili.com')) return 'bilibili'
+    if (host === 'twitch.tv' || host.endsWith('.twitch.tv')) return 'twitch'  // stream replays (VOD): imported in stream mode
   } catch { /* not a link */ }
   return null
 }

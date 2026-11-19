@@ -166,7 +166,7 @@ test('saving the first-run dialog makes the import page ready without a reload',
     './useTranscriptionRecovery': { useTranscriptionRecovery: () => [{ phase: 'idle', percent: null }, { open() {}, close() {}, install: async () => {}, retry: async () => {} }] },
     './settingsReturn': settingsReturn,
     './studio.css': {},
-    './quick-output.css': {},
+    './quick-output.css': {}, './StreamModePanel': { default: 'stream-mode', streamFormFields: () => [], transcriptNotRequired: (_options, has) => !!has },
     '../settings/OutputCaptionsSetting': { OutputCaptionsSwitch: () => null },
     './ImportSetupCard': { default: function ImportSetupCard() { return null } },
   }

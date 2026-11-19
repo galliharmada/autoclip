@@ -50,6 +50,8 @@ test('platforms stay on the current default until remembering is turned on', () 
 test('only an https bilibili or youtube link autostarts, and undo stays open for three seconds', () => {
   assert.equal(paste.importUrlKind('https://www.youtube.com/watch?v=abc'), 'youtube')
   assert.equal(paste.importUrlKind('https://b23.tv/abc'), 'bilibili')
+  assert.equal(paste.importUrlKind('https://www.twitch.tv/videos/123456789'), 'twitch')
+  assert.equal(paste.importUrlKind('https://nottwitch.tv/videos/1'), null)
   assert.equal(paste.importUrlKind('http://youtube.com/watch?v=abc'), null)
   assert.equal(paste.importUrlKind('https://example.com/video'), null)
   assert.equal(paste.importUrlKind('https://user:pass@youtube.com/watch?v=abc'), null)

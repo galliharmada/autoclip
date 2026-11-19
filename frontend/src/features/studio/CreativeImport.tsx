@@ -30,6 +30,7 @@ import { browserCookieRecovery, cookieAssistFromLocation, stageBrowserCookieReco
 import { SETTINGS_SAVED_EVENT } from './settingsReturn'
 import { useTranscriptionRecovery } from './useTranscriptionRecovery'
 import UrlPreview, { shouldSuggestFirstWindow, type UrlInspectPreview } from './UrlPreview'
+import StreamModePanel, { streamFormFields, transcriptNotRequired } from './StreamModePanel'
 import './studio.css'
 import './quick-output.css'
 
@@ -130,6 +131,9 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
   })
   const [file, setFile] = useState<File | null>(null)
   const [subtitle, setSubtitle] = useState<File | null>(null)
+  const chatRef = useRef<File | null>(null)  // stream mode chat upload; a ref keeps the import page's state list unchanged
+  // A Twitch link is always a stream replay: switch the mode on so it never runs the transcript route.
+  useEffect(() => { if (importUrlKind(url) === 'twitch') setOptions(prev => prev.stream ? prev : { ...prev, stream: true, source_window: null }) }, [url])
   const [options, setOptions] = useState<ImportOptions>({...defaultImportOptions})
   const templatesOn = useFlag('pkg_templates_v1') === true
   const visualOn = useFlag('pkg_template_picker_visual') === true
@@ -302,7 +306,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
     const nextUrl = next?.url ?? url
     const nextSource = next?.file ? 'file' : next?.url ? 'link' : source
     if (nextSource === 'file' ? !nextFile : !nextUrl.trim()) { setError(t("请先添加视频文件或链接")); return false }
-    const reason = submissionBlock(readiness, !!subtitle, settled, { source: nextSource, allowLinkWithoutWhisper: allowLink })
+    const reason = submissionBlock(readiness, transcriptNotRequired(options, !!subtitle), settled, { source: nextSource, allowLinkWithoutWhisper: allowLink })
     if (reason === 'pending') { setError(blockMessage(reason, readiness)); return false }
     trackAsrReadiness(asrReadinessProperties(readiness, !!subtitle))
     const check = readiness?.checks?.transcription
@@ -405,7 +409,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
     if (source === 'link' && url.trim() && !urlPreview && !previewLoading) {
       const preview = await runInspect(url.trim(), 'blur')
       if (!preview) return
-      if (preview.preview_route === 'local_transcription'
+      if (preview.preview_route === 'local_transcription' && !options.stream
         && readiness?.checks?.transcription?.ok === false
         && !subtitle
         && !readiness?.checks?.transcription?.skippable
@@ -428,7 +432,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
     if (
       !confirmed
       && !firstWindowDecided.current
-      && shouldSuggestFirstWindow(hasSuccessHistory(), durationForWindow)
+      && !options.stream && shouldSuggestFirstWindow(hasSuccessHistory(), durationForWindow)
     ) {
       if (!readyToStart(trigger, undefined, fresh ?? readiness)) return
       setFirstWindowGate({ open: true, trigger })
@@ -467,6 +471,8 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
         body.append('source_window_start', String(windowChoice.start ?? 0))
         body.append('source_window_end', String(windowChoice.end))
       }
+      for (const [key, value] of streamFormFields(options)) body.append(key, value)
+      if (options.stream && chatRef.current && source === 'file') body.append('chat', chatRef.current)
       if (subtitle) body.append('subtitle', subtitle)
       body.append('name', file && source === 'file' ? file.name.replace(/\.[^.]+$/, '') : t("智能剪辑"))
       if (source === 'file' && file) body.append('video', file)
@@ -534,6 +540,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
       {templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <TemplatePicker visual={visualOn} disabled={busy} value={options.html_template} sourceKey={source === 'file' ? (file ? `file:${file.name}:${file.size}:${file.lastModified}` : null) : (url.trim() ? `url:${url.trim()}` : null)} url={url} file={file} sourceKind={source === 'file' ? (file ? 'file' : 'none') : (url.trim() ? 'link' : 'none')} onChange={(html_template: HtmlTemplateChoice) => setOptions({...options, html_template})}/>}
       {!templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
       {templatesOn && options.html_template === 'classic' && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
+      <StreamModePanel value={options} onChange={setOptions} onChat={file => { chatRef.current = file }} showChat={source === 'file'} disabled={busy} />
       <OutputCaptionsSwitch label={t('字幕')} hint={t('关闭后成片不带字幕。标题只在封面上，不会烧进视频。')} />
       <details className="studio-details"><summary>{t("有特别要求？（选填）")}</summary><label className="studio-field"><span className="studio-sr">{t("制作要求")}</span><input aria-label={t("制作要求")} placeholder={t("例如：保留完整观点或挑战过程")} maxLength={1000} value={options.instruction} disabled={busy} onChange={e=>setOptions({...options,instruction:e.target.value})}/></label></details>
       {issues.length > 0 && <div className="studio-readiness" role="status">
@@ -548,7 +555,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
         loading={previewLoading}
         needsTranscriptionInstall={needsPreviewTranscriptionInstall}
         installing={repairing}
-        suggestFirstWindow={!options.source_window && shouldSuggestFirstWindow(hasSuccessHistory(), urlPreview?.duration ?? null)}
+        suggestFirstWindow={!options.source_window && !options.stream && shouldSuggestFirstWindow(hasSuccessHistory(), urlPreview?.duration ?? null)}
         onInstallTranscription={() => {
           const check = readiness?.checks?.transcription
           resumeSubmit.current = false
@@ -573,7 +580,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked,
         }}
         onDismiss={() => { clearPreview(); setUrl(''); setPending(null); firstWindowDecided.current = false }}
         window={options.source_window ?? null}
-        onWindowChange={next => {
+        onWindowChange={options.stream ? undefined : next => {
           // The same synchronous override the FormData read uses (T2), so the picker,
           // the first-run tip and the submit cannot disagree.
           sourceWindowOverride.current = next
