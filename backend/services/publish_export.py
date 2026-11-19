@@ -202,7 +202,7 @@ def _layout_filters(layout: str, w: Optional[int], h: Optional[int]) -> List[str
             f"[fg]scale={w}:-2[fg2]",
             f"[bg2][fg2]overlay=(W-w)/2:(H-h)/2[base]",
         ]
-    if layout == "crop":
+    if layout in ("crop", "stack"):  # stack needs a facecam rect; without one it is a plain crop
         return [f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}[base]"]
     if layout == "fit":
         return [f"[0:v]scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black[base]"]

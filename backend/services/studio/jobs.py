@@ -751,6 +751,8 @@ def _apply_strategy(draft, strategy_id, *, burned_subtitles=False, layout=None, 
         burned_subtitles = False  # blurred out: our own captions and framing apply
     if burned_subtitles and strategy.aspect == 'portrait' and layout == 'crop':
         layout = 'blur'
+    if value.get('layout') == 'stack' and value.get('facecam') and strategy.aspect == 'portrait':
+        layout = 'stack'  # the stream route chose it from the picture; a platform default must not undo that
     value.update(
         aspect=strategy.aspect,
         layout=layout,
@@ -1121,6 +1123,8 @@ def _apply_framing(project_id, value, strategy_id, video, burned, cache, portrai
     strategy = _project_strategy(project_id, strategy_id)
     if strategy.aspect != 'portrait':
         return value, None
+    if value.get('layout') == 'stack' and value.get('facecam'):
+        return value, None  # facecam over gameplay: no speaker tracking, the panels are fixed
     interview = strategy.template == 'interview_zh'
     fallback_layout = 'window' if interview else 'blur'
     if burned and _caption_mask(project_id, strategy_id):

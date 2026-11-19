@@ -980,6 +980,8 @@
   "保留原声": "Conserver le son original",
   "原画幅": "Format d’origine",
   "构图": "Cadrage",
+  "上下分屏": "Caméra en haut",
+  "摄像头在上，游戏画面在下。": "Caméra en haut, jeu en bas.",
   "取景位置": "Position du cadrage",
   "文案修改要求": "Consignes de réécriture",
   "告诉 AI 怎么改文案，例如：开头改成一个简短的问题": "Indiquez la modification à l’IA, ex. : commencer par une courte question",

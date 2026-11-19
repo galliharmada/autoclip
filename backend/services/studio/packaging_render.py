@@ -400,6 +400,9 @@ def picture_only(draft: Draft, scene: Scene, w: int, h: int) -> tuple[str, str]:
     """The base picture without ASS. The HTML overlay is a later input."""
     from backend.services.publish_export import _layout_filters
     from backend.services.studio.framing import layout_filter, on_cut_frames
+    if draft.layout == 'stack':
+        from backend.services.studio.facecam import stack_filter
+        return stack_filter(draft.facecam, draft.crop_x, w, h), 'base'
     if draft.layout == 'crop':
         # The template outputs change crop on the cut frame itself; classic keeps its exact graph.
         return layout_filter(on_cut_frames(scene), draft.crop_x, w, h), 'base'
@@ -446,7 +449,10 @@ def scene_video_graph(draft: Draft, scene: Scene, index: int, ass_path: Path, w:
                  f"[canvas][bar]overlay=x='-w+w*(t+{offset:.3f})/{total:.3f}':y={WIN_Y + WIN_H}:shortest=1[framed];"
                  f"[framed]{ass}[packaged]")
         return graph, 'packaged'
-    if draft.layout == 'crop':
+    if draft.layout == 'stack':
+        from backend.services.studio.facecam import stack_filter
+        base = stack_filter(draft.facecam, draft.crop_x, w, h)
+    elif draft.layout == 'crop':
         base = layout_filter(scene, draft.crop_x, w, h)
     else:
         base = ';'.join(_layout_filters(draft.layout if draft.layout in ('blur', 'fit') else 'fit', w, h))

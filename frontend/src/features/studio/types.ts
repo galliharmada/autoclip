@@ -66,7 +66,8 @@ export interface Packaging {
 }
 export interface Draft {
   id: string; title: string; hook: string; scenes: Scene[]; language: Language
-  aspect: 'original' | 'portrait' | 'landscape'; layout: 'fit' | 'crop' | 'blur' | 'window'
+  aspect: 'original' | 'portrait' | 'landscape'; layout: 'fit' | 'crop' | 'blur' | 'window' | 'stack'
+  facecam?: [number, number, number, number] | null
   crop_x?: number; title_style?: 'plain' | 'impact' | 'card' | 'comic' | 'neon' | 'arena' | 'editorial' | 'pixel' | 'frosted'
   title_template_version?: 1 | 2 | 3 | 4 | 5 | 6; title_motion?: boolean; title_scale?: number; title_y?: number; title_accent?: string | null
   subtitles: boolean; subtitle_style?: SubtitleStyle; original_audio: boolean; revision: number; updated_at: string; origin: string

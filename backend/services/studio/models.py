@@ -1,8 +1,9 @@
-from backend.core.failure_codes import UserFacingError
+import math
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from backend.core.failure_codes import UserFacingError
 from backend.services.studio.templates.spec import HTML_TEMPLATE_IDS
 
 Goal = Literal['content', 'highlight', 'promo']
@@ -176,7 +177,9 @@ class Draft(BaseModel):
     scenes: list[Scene] = Field(min_length=1, max_length=30)
     language: Language = 'source'
     aspect: Literal['original', 'portrait', 'landscape'] = 'original'
-    layout: Literal['fit', 'crop', 'blur', 'window'] = 'fit'
+    layout: Literal['fit', 'crop', 'blur', 'window', 'stack'] = 'fit'
+    # Facecam crop (x, y, w, h) as frame fractions; the 'stack' layout puts it above the gameplay.
+    facecam: tuple[float, float, float, float] | None = None
     crop_x: float = Field(default=.5, ge=0, le=1, allow_inf_nan=False)
     title_style: Literal['plain', 'impact', 'card', 'comic', 'neon', 'arena', 'editorial', 'pixel', 'frosted'] = 'plain'
     title_template_version: Literal[1, 2, 3, 4, 5, 6] = 1
@@ -196,6 +199,16 @@ class Draft(BaseModel):
     # (top, bottom) of burned captions as fractions of the frame height, blurred out before layout:
     # an English version of a source with Chinese captions in the picture.
     caption_mask: tuple[float, float] | None = None
+
+    @model_validator(mode='after')
+    def stack_needs_facecam(self):
+        if self.facecam is not None:
+            x, y, w, h = self.facecam
+            if not all(math.isfinite(v) for v in self.facecam) or x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > 1.0001 or y + h > 1.0001:
+                raise ValueError('facecam must be a rectangle inside the frame')
+        if self.layout == 'stack' and self.facecam is None:
+            self.layout = 'crop'  # nothing to stack: same picture as a plain vertical crop
+        return self
 
     @model_validator(mode='after')
     def title_version(self):

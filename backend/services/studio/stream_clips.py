@@ -10,7 +10,12 @@ import uuid
 from pathlib import Path
 
 from backend.core.failure_codes import UserFacingError
-from backend.services.studio import stream_chat, stream_signals, stream_transcript
+from backend.services.studio import (
+    facecam,
+    stream_chat,
+    stream_signals,
+    stream_transcript,
+)
 from backend.services.studio.models import Draft, Scene
 
 logger = logging.getLogger(__name__)
@@ -40,6 +45,13 @@ def drafts(plan: dict, video: Path, *, top_n: int = 8) -> list[dict]:
     except Exception as error:  # noqa: BLE001 - captions are optional; the clips still render
         logger.warning('Stream transcription skipped: %s', type(error).__name__)
         cues = []
+    rect = None
+    if prefs.get('aspect') == 'portrait':
+        try:
+            rect = facecam.detect_facecam(video, duration)
+        except Exception as error:  # noqa: BLE001 - no facecam means a plain vertical crop
+            logger.warning('Facecam detection skipped: %s', type(error).__name__)
+    layout = 'stack' if rect else ('crop' if prefs.get('aspect') == 'portrait' else 'fit')
     out = []
     for window in windows:
         start, end = stream_transcript.snap(window.start, window.end, cues, duration)
@@ -49,6 +61,6 @@ def drafts(plan: dict, video: Path, *, top_n: int = 8) -> list[dict]:
         out.append({**Draft(
             id=uuid.uuid4().hex, title=scene.label, scenes=[scene], origin='auto-stream',
             language=prefs.get('language', 'source'), aspect=prefs.get('aspect', 'original'),
-            layout='crop' if prefs.get('aspect') == 'portrait' else 'fit', subtitles=True,
+            layout=layout, facecam=rect, subtitles=True,
         ).model_dump(), SCORE_KEY: window.score})
     return out

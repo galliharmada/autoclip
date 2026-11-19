@@ -172,22 +172,22 @@ real moments (record the judgement in the Progress log). The pre-pass takes <10 
 karaoke sidecar is used (not the sentence-only fallback).
 
 ### Phase 4 — `stack` layout (facecam on top, gameplay below)
-- [ ] **T4.1** Facecam detection, pure plus a thin I/O wrapper in `backend/services/studio/facecam.py`:
+- [x] **T4.1** Facecam detection, pure plus a thin I/O wrapper in `backend/services/studio/facecam.py`:
   sample ~30 frames spread over the source, run YuNet through `framing.load_cv2()` and `framing._detector()`,
   and keep faces that are small (<25% frame width) and **stationary** (box centre spread < 3%).
   Return the facecam rect as fractions `(x, y, w, h)`, padded by 35% and clamped to the frame, or `None`.
   Tests on synthetic detection lists: a stable corner face gives a rect; a moving face gives `None`;
   no faces gives `None`; padding is clamped at the edges.
-- [ ] **T4.2** Model: add `'stack'` to `Draft.layout` and `facecam: tuple[float,float,float,float] | None = None`
+- [x] **T4.2** Model: add `'stack'` to `Draft.layout` and `facecam: tuple[float,float,float,float] | None = None`
   to `Draft` (`models.py`; the model uses `extra='forbid'`, so this is required). Old drafts must still load
   (regression test with a saved draft JSON that has no `facecam`).
-- [ ] **T4.3** Render: in `render.py` next to the `crop` branch (~line 353), add a `stack` filter:
+- [x] **T4.3** Render: in `render.py` next to the `crop` branch (~line 353), add a `stack` filter:
   top = facecam crop scaled to 1080×768, bottom = gameplay centre crop scaled to 1080×1152, `vstack`.
   If `facecam is None`, fall back to the existing `crop` path. Subtitles sit just above the seam
   (bottom of the top panel); reuse the existing subtitle positioning hook rather than adding a new one.
   Test: the filter-graph string for a known rect, and the fallback when the rect is missing.
-- [ ] **T4.4** Auto-pick: the stream route sets `layout='stack'` when facecam detection succeeds, otherwise `crop`.
-- [ ] **T4.5** Frontend: add the `stack` option in `DraftSettingsPanel.tsx`, plus a simple drag-to-adjust
+- [x] **T4.4** Auto-pick: the stream route sets `layout='stack'` when facecam detection succeeds, otherwise `crop`.
+- [~] **T4.5** (picker done; drag-to-adjust box NOT done) Frontend: add the `stack` option in `DraftSettingsPanel.tsx`, plus a simple drag-to-adjust
   facecam box in `StudioEditor.tsx` (rect only, following `DESIGN.md`). Strings go in all 8 locales.
   Run the frontend lint, types, tests and build via the quality gate.
 
@@ -227,6 +227,21 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 ## 7. Progress log
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
+
+- 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 4 done except the editor drag box. `facecam.py`: samples 30 frames, YuNet via `framing`, picks the
+  small face that stays put in >=40% of frames (moving in-game faces and close-ups are rejected), crop rect gets the 1080x768 top-panel aspect;
+  `stack_filter` = facecam crop on top (40%) + gameplay centre crop below (shiftable with `crop_x`). `Draft.layout` gained `stack`, `Draft.facecam`
+  (validated; `stack` without a facecam becomes `crop`; old drafts load). Seams: `packaging_render` (picture_only, scene_video_graph),
+  `jobs._apply_strategy` (platform default must not undo stack), `jobs._apply_framing` (skip speaker tracking for stack), `publish_export._layout_filters`
+  (stack without rect = crop). Frontend: type + a "上下分屏" option shown only when the draft has a facecam, 2 new keys in all 8 locales.
+  **Not done:** drag-to-adjust facecam box in the editor (the rect is editable via the draft JSON/API only); real-face detection was not run (no
+  face footage on the box; only the blank-frame plumbing smoke passed); no real render of a stack clip yet (T7.2).
+  **Verification:** full backend suite on branch = 5 failed / 4523 passed. Clean main (worktree) = 47 failed / 4374 passed, but that run is not
+  comparable (worktree lacks node_modules/frontend, so real-backend tests skipped or failed differently). Failures on branch: `test_burned_subtitles` x2
+  (pre-existing, reproduced on clean main), `test_frontend_real_backend[analytics.real-backend.cjs]` (the node test spawns `python` from PATH = system python
+  without sqlalchemy; environment, not code), `test_parent_watch` x2 (pass in isolation: flaky under load). Frontend gate: lint, typecheck, build pass;
+  `npm test` has 117 failures both **with and without** these changes (identical set, pre-existing/environmental). `tests/i18n.test.cjs`
+  "no duplicate keys" also fails on clean HEAD. T0.2 baseline is therefore: backend 47 F on a bare worktree, 5 F on the real checkout (list above).
 
 - 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 3 done (T3.1–T3.3). `stream_transcript.py`: cut each window to 16 kHz mono wav, recognise with the
   existing `SpeechRecognizer().generate_subtitle`, shift cues and word times by the window start, write merged `raw/input.srt` + word sidecar

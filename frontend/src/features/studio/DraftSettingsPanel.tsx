@@ -79,9 +79,9 @@ export default function DraftSettingsPanel({ draft, patch, scene, currentTime, o
           options={[{ value: 'original', label: t("原画幅") }, { value: 'portrait', label: '9:16' }, { value: 'landscape', label: '16:9' }]}
           onChange={value => patch({ aspect: value, ...(value === 'portrait' ? { layout: 'crop' as const } : {}) })} />
       </Row>
-      {draft.aspect !== 'original' && <Row label={t("构图")} hint={cropping ? t("主体铺满画面，自动对准说话的人。") : t("保留完整画面，两侧留边或模糊背景。")}>
+      {draft.aspect !== 'original' && <Row label={t("构图")} hint={draft.layout === 'stack' ? t("摄像头在上，游戏画面在下。") : cropping ? t("主体铺满画面，自动对准说话的人。") : t("保留完整画面，两侧留边或模糊背景。")}>
         <Segmented size="sm" ariaLabel={t("构图")} value={draft.layout}
-          options={[{ value: 'crop', label: t("满屏") }, { value: 'blur', label: t("模糊背景") }, { value: 'fit', label: t("留边") }]}
+          options={[{ value: 'crop', label: t("满屏") }, ...(draft.facecam ? [{ value: 'stack' as const, label: t("上下分屏") }] : []), { value: 'blur', label: t("模糊背景") }, { value: 'fit', label: t("留边") }]}
           onChange={value => patch({ layout: value })} />
       </Row>}
       {cropping && <Row stack label={t("取景")} hint={
