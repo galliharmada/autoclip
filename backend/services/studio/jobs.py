@@ -840,6 +840,9 @@ def _content_drafts(project_id, plan, video, platforms=()):
     """Create drafts once from the selected content route, before platform derivation."""
     route = plan.get('recommended_analysis', 'subtitle')
     prefs = Preferences.model_validate(plan['preferences'])
+    if (plan.get('overrides') or {}).get('stream'):
+        from backend.services.studio import stream_clips
+        return stream_clips.drafts(plan, video)
     if route == 'subtitle' or prefs.goal == 'content':
         from backend.services.platform_strategy import long_form_minimum
         min_sec, label = long_form_minimum(platforms)
@@ -2238,7 +2241,7 @@ def confirm_project(project_id, body):
             from backend.services.studio import intelligence
             if not intelligence.ready():
                 raise UserFacingError('视觉模型不可用，请配置后重新确认；原素材已保留')
-        if route == 'subtitle' or 'content' in body.goals:
+        if (route == 'subtitle' or 'content' in body.goals) and not (plan.get('overrides') or {}).get('stream'):
             # Too short / no audio and no SRT: refuse before production spends any model call (RC156 #10/#11).
             # The one preflight on the confirmed subtitle route (#418 rewrite): source first, then the install
             # prompt (coded 422, waiting codes kept as is), before production spends any model call.

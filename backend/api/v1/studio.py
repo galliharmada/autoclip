@@ -156,7 +156,7 @@ async def inspect_url(body: InspectUrlBody):
     parsed = urlparse(body.url.strip())
     host = (parsed.hostname or '').lower()
     if parsed.scheme != 'https' or parsed.username or parsed.password or not any(
-        host == d or host.endswith('.' + d) for d in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv')
+        host == d or host.endswith('.' + d) for d in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv', 'twitch.tv')
     ):
         raise HTTPException(422, '仅支持 HTTPS 的 B 站或 YouTube 视频链接')
     from backend.services.studio import planning
@@ -246,6 +246,7 @@ async def import_visual(
     video: Optional[UploadFile] = File(None),
     source_window_start: Optional[float] = Form(None, ge=0),
     source_window_end: Optional[float] = Form(None, gt=0),
+    stream: bool = Form(False),
     features: str = Form(''),
     db: Session = Depends(get_db),
 ):
@@ -256,7 +257,7 @@ async def import_visual(
     if url:
         parsed = urlparse(url)
         host = (parsed.hostname or '').lower()
-        if parsed.scheme != 'https' or parsed.username or parsed.password or not any(host == d or host.endswith('.' + d) for d in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv')):
+        if parsed.scheme != 'https' or parsed.username or parsed.password or not any(host == d or host.endswith('.' + d) for d in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv', 'twitch.tv')):
             raise HTTPException(422, '仅支持 HTTPS 的 B 站或 YouTube 视频链接')
     ext = Path(video.filename or '').suffix.lower() if video else '.mp4'
     if ext not in ('.mp4', '.mov', '.mkv', '.webm', '.avi'):
@@ -295,7 +296,7 @@ async def import_visual(
             platforms=platforms, auto_start=auto_start, portrait_style=portrait_style, html_template=html_template,
             recommended_template=recommended_template,
             branding={'outro_enabled': brand_outro_enabled},
-            source_window=source_window,
+            source_window=source_window, stream=stream,
         )
         project = ProjectService(db).create_project(ProjectCreate(name=name.strip() or '智能剪辑', project_type=ProjectType.DEFAULT, source_url=url, settings={'creative': {'goal': goal}, 'smart_import': prefs.model_dump(), 'import_staging': not prefs.auto_start, 'creative_browser': browser, 'platforms': prefs.platforms, 'brand_outro_enabled': prefs.branding.outro_enabled}))
     except BaseException:
@@ -378,7 +379,7 @@ async def template_recommend(
     if url:
         parsed = urlparse(url)
         host = (parsed.hostname or '').lower()
-        if parsed.scheme != 'https' or parsed.username or parsed.password or not any(host == domain or host.endswith('.' + domain) for domain in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv')):
+        if parsed.scheme != 'https' or parsed.username or parsed.password or not any(host == domain or host.endswith('.' + domain) for domain in ('youtube.com', 'youtu.be', 'bilibili.com', 'b23.tv', 'twitch.tv')):
             raise HTTPException(422, '仅支持 HTTPS 的 B 站或 YouTube 视频链接')
     blob = None
     if header is not None:

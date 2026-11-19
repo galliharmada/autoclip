@@ -346,6 +346,8 @@ class ImportOptions(BaseModel):
     recommended_template: Literal['editorial', 'street', 'classic'] | None = None
     branding: BrandingOptions = Field(default_factory=BrandingOptions)
     source_window: SourceWindow | None = None
+    # Long stream source: moments come from chat and sound, not from a model or the full transcript.
+    stream: bool = False
 
     @model_validator(mode='after')
     def unique_platforms(self):

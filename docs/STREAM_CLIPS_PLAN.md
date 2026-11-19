@@ -130,7 +130,7 @@ Legend: `[ ]` todo · `[~]` in progress (put the agent and date next to it) · `
 a VOD without chat still downloads and imports exactly as before (regression test).
 
 ### Phase 2 — Moment pre-pass (core)
-- [ ] **T2.1** New `backend/services/studio/stream_signals.py` with **pure** functions (no I/O) first:
+- [x] **T2.1** New `backend/services/studio/stream_signals.py` with **pure** functions (no I/O) first:
   - `chat_rate(messages, duration) -> list[float]`: messages per second, then a z-score against a rolling
     5-minute baseline.
   - `chat_hits(messages, duration, lexicon) -> list[float]`: per-second hits for emotes and phrases.
@@ -139,21 +139,21 @@ a VOD without chat still downloads and imports exactly as before (regression tes
     → merged, non-overlapping windows sorted by score, each with `reasons` (which signals fired).
   Tests in `test_stream_signals.py`: synthetic chat burst at t=600 gives a window covering 580–610;
   two bursts 15 s apart merge; `top_n` is respected; flat input gives `[]`; a missing chat signal is still handled.
-- [ ] **T2.2** Audio signal: `loudness_series(video) -> list[float]` using ffmpeg `ebur128` momentary loudness
+- [x] **T2.2** Audio signal: `loudness_series(video) -> list[float]` using ffmpeg `ebur128` momentary loudness
   (or `astats`), one value per second, converted to a spike z-score. Must stream through an 8-h file
   without loading it into memory. Add a timeout, and return `[]` on failure.
   Test the parser with captured ffmpeg stderr text (no real decode in unit tests).
-- [ ] **T2.3** `score_source(video, chat_path) -> list[Window]`, which wires T2.1 + T2.2. Default weights:
+- [x] **T2.3** `score_source(video, chat_path) -> list[Window]`, which wires T2.1 + T2.2. Default weights:
   chat rate 0.45, chat hits 0.35, audio 0.20. With no chat, the weights fall back to audio only. Weights are
   constants, not settings (YAGNI).
-- [ ] **T2.4** Duration caps: let a source over 2 h through **only when** the stream route provides
+- [x] **T2.4** Duration caps: let a source over 2 h through **only when** the stream route provides
   windows. The cap then applies to each window span, not the source (`planning.py:22`, `intelligence.py:444`).
   Regression test: a 3-h source without windows is still rejected with the existing message.
-- [ ] **T2.5** Stream route in `jobs.py`: when `import_options.route == 'stream'` (new option), run
+- [x] **T2.5** Stream route in `jobs.py`: when `import_options.route == 'stream'` (new option), run
   `score_source`, then the existing analyze/scoring per window with `window={'start','end'}`, then merge
   drafts and dedupe with the existing overlap rule (`subtitle_highlights.make_highlights` uses >80%).
   Cancellation and progress use the existing helpers. Emit progress per window.
-- [ ] **T2.6** Store the windows and reasons in the project (`stream_windows`) so the UI and CLI can show
+- [x] **T2.6** Store the windows and reasons in the project (`stream_windows`) so the UI and CLI can show
   why a clip was picked.
 
 **Phase 2 acceptance:** on the ≥3 h VOD, the top 8 windows include at least 5 that a human agrees are
@@ -227,6 +227,18 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 ## 7. Progress log
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
+
+- 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 2 done (T2.1–T2.6). **Deviations from the plan text (intentional, simpler):**
+  (a) the stream route does **not** call the vision `analyze()` per window; drafts come straight from the windows
+  (`stream_clips.drafts`), so no model call is needed to find moments and **T2.4 (lift the 2 h cap) is not needed**; the 2 h cap and
+  `source_window` are untouched. (b) The route is switched by `ImportOptions.stream` (plan `overrides.stream`), **not** by a new
+  `recommended_analysis` value, because the UI sends `recommended_analysis` back on confirm and `ConfirmPlan` only accepts
+  `subtitle|visual`. `planning.recommend()` returns an early local plan for streams; `jobs._content_drafts` branches on
+  `overrides.stream`; `confirm_project` skips the subtitle preflight for streams. (c) `find_windows` merges a nearby second hot spot into
+  the first window (up to `max_len`) instead of dropping it; `min_gap` was dropped (non-overlap makes it redundant). (d) T2.6: the reasons
+  are stored in `scene.evidence` (「依据：聊天刷屏、音量突增」), no separate `stream_windows` field. (e) API: `stream` form field added and
+  `twitch.tv` allowed in the three URL allow-lists in `api/v1/studio.py`. 36 new tests. **Known pre-existing failures on clean main:**
+  `test_burned_subtitles.py` (2 tests). Real-media acceptance of Phase 2 (≥3 h VOD, human judgement) is still open: needs T0.3 media.
 
 - 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 1 done (T1.1–T1.4). Spike T1.3: yt-dlp 2026.08.19 has **no Twitch chat**; YouTube `live_chat`
   works. Twitch uses `chat-downloader` (0.2.8) installed on demand into `<data>/chat-runtime` (best-effort; untested against live Twitch).

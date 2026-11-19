@@ -250,6 +250,14 @@ def recommend(video: Path, options: ImportOptions):
     duration = planning_duration(full_duration, options)
     info = {**info, 'duration': duration}
     consent = analysis_preferences.load()
+    if options.stream:
+        # Streams are hours long and found by chat/sound: no screening call, no transcript, no length cap.
+        result = Recommendation(content_type='gameplay', goal='highlight', confidence=1, aspect=options.aspect or 'portrait',
+            duration=options.duration or 30, suggested_goals=['highlight'], reason='直播素材：按聊天热度和音量找高光，不调用模型。')
+        prefs = Preferences(goal='highlight', language=options.language, aspect=result.aspect, duration=result.duration)
+        return {'analysis_preferences': consent.model_dump(), 'recommended_analysis': 'subtitle', 'mode': 'local',
+                'source_duration': duration, **result.model_dump(), 'preferences': prefs.model_dump(),
+                'overrides': options.model_dump(exclude_none=True)}
     # sources over 120 min go to the subtitle route BEFORE any vision config
     # check or screening, on the same provider, with a structured reason code + hint (auto
     # and visual alike). Subtitle/transcription readiness is verified up front.
