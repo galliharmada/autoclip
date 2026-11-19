@@ -1,6 +1,13 @@
 """Stream moment signals: chat rate/hits, loudness, window picking. Pure functions, no media."""
 
+import os
+import shutil
+import subprocess
+
+import pytest
+
 from backend.services.studio import stream_signals as ss
+from backend.utils.ffmpeg_utils import get_ffmpeg_path
 
 
 def _chat(base_every=2.0, duration=1200, bursts=()):
@@ -135,11 +142,8 @@ def test_score_source_no_signals_is_empty(tmp_path):
 
 def test_loudness_series_real_ffmpeg_finds_the_loud_burst(tmp_path):
     """ffmpeg only prints ebur128 frame lines for framelog=info; this guards the real output format."""
-    import shutil
-    import subprocess
-    from backend.utils.ffmpeg_utils import get_ffmpeg_path
     ff = get_ffmpeg_path()
-    if not (shutil.which(ff) or __import__('os').path.exists(ff)):
+    if not (shutil.which(ff) or os.path.exists(ff)):
         pytest.skip('ffmpeg not available')
     wav = tmp_path / 'burst.wav'
     subprocess.run([ff, '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=40,volume=0.03',
