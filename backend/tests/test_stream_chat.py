@@ -145,3 +145,12 @@ def test_live_status_probe_failure_never_blocks(monkeypatch):
         def extract_info(self, *a, **k): raise RuntimeError('net')
     monkeypatch.setattr(yt_dlp, 'YoutubeDL', Boom)
     assert jobs._live_status('https://youtu.be/x', {}) == ''
+
+
+def test_live_capture_lines_without_any_offset_field_still_parse(tmp_path):
+    f = tmp_path / 'live.json'
+    base = 1_700_000_000.0
+    line = _live_line((base + 7) * 1e6, 'hi')
+    del line['replayChatItemAction']['videoOffsetTimeMsec']
+    _write(f, [line])
+    assert stream_chat.parse_youtube_live_chat(f, recording_start=base) == [(7.0, 'hi')]

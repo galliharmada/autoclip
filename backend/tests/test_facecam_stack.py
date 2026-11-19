@@ -120,3 +120,9 @@ def test_stream_drafts_fall_back_to_crop_without_facecam_or_on_error(monkeypatch
     monkeypatch.setattr(stream_clips.facecam, 'detect_facecam', boom)
     assert stream_clips.drafts({'preferences': {'aspect': 'portrait'}}, tmp_path / 'input.mp4')[0]['layout'] == 'crop'
     assert stream_clips.drafts({'preferences': {'aspect': 'original'}}, tmp_path / 'input.mp4')[0]['layout'] == 'fit'
+
+
+def test_facecam_crop_covers_an_overlay_not_just_the_face():
+    """Real stream (IShowSpeed, 720p): the face is ~4% of the frame wide; the overlay ~20%. A face-tight crop upscaled to 1080 is mush."""
+    x, y, w, h = facecam.pick_facecam(_frames(stable=(.1, .55, .04), noise=False), ASPECT)
+    assert w >= .15 and x <= .1 <= x + w

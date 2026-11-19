@@ -108,7 +108,7 @@ Legend: `[ ]` todo · `[~]` in progress (put the agent and date next to it) · `
 - [x] **T0.1** Resolve the uncommitted T2 work with the owner (see Branching). Create `feat/stream-clips`.
 - [x] **T0.2** Baseline: `python scripts/quality_gate.py --group all --report /tmp/qg-baseline.json`.
   Record pass/fail counts in the Progress log so later failures can be told apart from existing ones.
-- [ ] **T0.3** Get test media: one short (10–20 min) Twitch or YouTube VOD **with chat**, and one ≥3 h VOD.
+- [~] **T0.3** (one 465 s slice of a LIVE stream recorded; no multi-hour VOD yet) Get test media: one short (10–20 min) Twitch or YouTube VOD **with chat**, and one ≥3 h VOD.
   Store them outside the repo (`~/autoclip-testdata/`) and note the URLs in the Progress log (no media in git).
 
 ### Phase 1 — Chat ingest
@@ -208,7 +208,7 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 
 ### Phase 7 — Final acceptance
 - [x] **T7.1** (gate still reports `failed` only because of 4 pre-existing environment failures, see log) `python scripts/quality_gate.py --group all --report /tmp/qg-final.json`: no new failures vs the T0.2 baseline.
-- [ ] **T7.2** End-to-end on gangnamPC with the ≥3 h VOD: ≥5 clips, 1080×1920, H.264/AAC, -14 LUFS (±1),
+- [~] **T7.2** (done on a 465 s live-stream slice, see log; the >=3 h run is still open) End-to-end on gangnamPC with the ≥3 h VOD: ≥5 clips, 1080×1920, H.264/AAC, -14 LUFS (±1),
   15–90 s each, captions present, `stack` layout used when there is a facecam. Record the timings.
 - [x] **T7.3** (PR NOT opened: not requested; open from `feat/stream-clips` when the owner says so) Update `HANDOFF.md` (status section only), `CHANGELOG.md` (Unreleased), and `.agent-handoff.md`.
   Open a PR from `feat/stream-clips`. **Don't merge, tag or release.**
@@ -227,6 +227,24 @@ no black bars or stretching; a stream without a facecam renders exactly like tod
 ## 7. Progress log
 
 Newest first. One line per session: date · agent · tasks touched · result · commit SHA.
+
+- 2026-11-19 · Claude Code (Sonnet 5.5) · **First real-footage run** (T0.3/T7.2 partial). Sample given by the owner was a **running live stream**
+  (IShowSpeed, GTA VI, 1280x720 facecam bottom-left), not a VOD. A VOD does not exist yet, so I recorded 600 s of it with ffmpeg and captured its
+  live chat with `yt-dlp --write-subs --sub-langs live_chat` for the same period (harness scripts live in `~/autoclip-testdata/`, not in the repo), cut
+  a 465 s slice with 2417 aligned chat messages. Then ran the real code, no mocks:
+  `score_source` 0.5 s (real ebur128 + chat), 5 windows; `detect_facecam` 3.2 s found the overlay at (0.018, 0.426, 0.157, 0.198);
+  `stream_clips.drafts` 15 s incl. local Whisper `base` on CPU for 5 windows (srt + word sidecar written, English detected);
+  `autoclip stream input.mp4 --chat chat.jsonl --top 5` in an isolated data dir with **no model configured** -> status completed, 5 x 1080x1920
+  H.264/AAC clips (22-32 s), `stack` layout verified by eye on a frame of a produced clip (facecam on top, gameplay below).
+  **Bugs found by this run and fixed:** (1) a live capture's chat lines have no `videoOffsetTimeMsec` key at all -> every message was dropped
+  (parser now uses `.get`, 3 regression tests); (2) live captures need `recording_start` (epoch) because only `timestampUsec` is meaningful, otherwise
+  nothing is returned; (3) `download()` would never finish on a running stream -> now refuses `is_live`/`is_upcoming` with a clear message;
+  (4) the facecam crop was face-tight (PAD 2.8, ~7x upscale at 720p) -> PAD 4.0 so it covers the overlay (regression test).
+  **Findings, not fixed:** `chat-downloader` 0.2.8 fails on YouTube ("Unable to parse initial video data"), so it is only a candidate for Twitch
+  (still untested live); the yt-dlp `live_chat` route is the one that works for YouTube. **Captions are not burned when no model is configured**:
+  the clips report 「包装未能完整生成，字幕暂不可用」 because the existing packaging step (an LLM call) writes the caption cues; our `input.srt` + word
+  sidecar are ready but the end-to-end caption result with a model is NOT verified (needs the owner's OK to spend model calls).
+  Not verified: multi-hour timings, Twitch, the owner's configured models, subtitle alignment on a rendered clip.
 
 - 2026-11-19 · Claude Code (Sonnet 5.5) · Phase 7 partly done. `quality_gate.py --group all` on `c08fc8f4`: status `failed`; passing: versions, readmes,
   tracking_inventory, ci_guards, release_gate_tests, redline_backend, media_test_dependencies, python_correctness, llm_hot_reload_tests, editorial_fixtures,

@@ -84,7 +84,7 @@ def parse_youtube_live_chat(path: Path, recording_start: float | None = None) ->
     for line in lines:
         try:
             action = json.loads(line)['replayChatItemAction']
-            offset = float(action['videoOffsetTimeMsec']) / 1000
+            offset = float(action.get('videoOffsetTimeMsec') or 0) / 1000
         except (ValueError, KeyError, TypeError):
             continue
         for sub in action.get('actions') or []:
