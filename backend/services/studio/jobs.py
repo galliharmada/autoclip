@@ -472,6 +472,24 @@ def inspect_url(url, browser=None):
 
 
 
+def _live_status(url, options):
+    """yt-dlp's live_status for the link ('' when unknown). A probe failure must not block the import."""
+    keep = ('cookiesfrombrowser', 'extractor_args', 'js_runtimes', 'remote_components', 'socket_timeout')
+    try:
+        import yt_dlp
+        with yt_dlp.YoutubeDL({**{k: v for k, v in options.items() if k in keep}, 'quiet': True, 'no_warnings': True,
+                               'skip_download': True, 'noplaylist': True}) as probe:
+            return str((probe.extract_info(url, download=False) or {}).get('live_status') or '')
+    except Exception:  # noqa: BLE001 - unknown means "try the download"
+        return ''
+
+
+def _reject_running_live(url, options):
+    """A stream that is still running has no end: downloading it would never finish."""
+    if _live_status(url, options) in ('is_live', 'is_upcoming'):
+        raise UserFacingError('这场直播还没有结束，无法下载完整回放。请等直播结束后再导入，或先自行录制成文件再用本地文件导入。')
+
+
 def download(project_id, url, browser, import_options=None):
     from backend.utils.ffmpeg_utils import get_ffmpeg_path, ytdlp_js_runtimes
     folder = store.directory(project_id) / 'raw'
@@ -480,6 +498,7 @@ def download(project_id, url, browser, import_options=None):
     options = {'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]', 'outtmpl': str(folder / 'input.%(ext)s'), 'merge_output_format': 'mp4', 'noplaylist': True, 'quiet': True, 'ffmpeg_location': get_ffmpeg_path(), 'socket_timeout': 30, 'retries': 2, 'progress_hooks': [progress], 'postprocessor_hooks': [progress], **ytdlp_js_runtimes()}
     if browser:
         options['cookiesfrombrowser'] = (browser,)
+    _reject_running_live(url, options)
     from backend.utils.download_recovery import download_with_recovery
     download_with_recovery(url, {**options, 'writeinfojson': True})
     # Public listing text only: packaging checks nameplate names against it instead of guessing.

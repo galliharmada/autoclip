@@ -93,3 +93,55 @@ def test_fetch_chat_twitch_unavailable_is_none(tmp_path, monkeypatch):
 @pytest.mark.parametrize('url', ['https://example.com/v', 'https://notyoutube.com/x', 'file:///a.mp4'])
 def test_fetch_chat_other_hosts_none(tmp_path, url):
     assert stream_chat.fetch_chat(url, {}, {}, tmp_path)['source'] == 'none'
+
+
+def _live_line(ts_usec, text, offset='0'):
+    renderer = {'message': {'runs': [{'text': text}]}, 'timestampUsec': str(ts_usec)}
+    action = {'addChatItemAction': {'item': {'liveChatTextMessageRenderer': renderer}}}
+    return {'replayChatItemAction': {'actions': [action], 'videoOffsetTimeMsec': offset}}
+
+
+def test_live_capture_uses_message_timestamps_relative_to_recording_start(tmp_path):
+    """A running stream has no video offsets (all 0); only timestampUsec is meaningful."""
+    f = tmp_path / 'live.json'
+    base = 1_700_000_000.0
+    _write(f, [_live_line((base + 12.5) * 1e6, 'a'), _live_line((base + 3) * 1e6, 'b'), _live_line((base - 5) * 1e6, 'before')])
+    assert stream_chat.parse_youtube_live_chat(f, recording_start=base) == [(3.0, 'b'), (12.5, 'a')]
+
+
+def test_live_capture_without_recording_start_gives_nothing_not_a_pile_at_zero(tmp_path):
+    f = tmp_path / 'live.json'
+    _write(f, [_live_line(1_700_000_005 * 1e6, 'a'), _live_line(1_700_000_006 * 1e6, 'b')])
+    assert stream_chat.parse_youtube_live_chat(f) == []
+
+
+def test_replay_with_some_zero_offsets_keeps_them(tmp_path):
+    f = tmp_path / 'vod.json'
+    _write(f, [_live_line(1_700_000_005 * 1e6, 'first', '0'), _live_line(1_700_000_006 * 1e6, 'later', '4000')])
+    assert stream_chat.parse_youtube_live_chat(f) == [(0.0, 'first'), (4.0, 'later')]
+
+
+def test_running_live_stream_is_rejected_before_downloading(monkeypatch):
+    from backend.core.failure_codes import UserFacingError
+    from backend.services.studio import jobs
+    for status in ('is_live', 'is_upcoming'):
+        monkeypatch.setattr(jobs, '_live_status', lambda url, options, s=status: s)
+        with pytest.raises(UserFacingError):
+            jobs._reject_running_live('https://youtu.be/x', {})
+    for status in ('was_live', 'not_live', ''):
+        monkeypatch.setattr(jobs, '_live_status', lambda url, options, s=status: s)
+        jobs._reject_running_live('https://youtu.be/x', {})
+
+
+def test_live_status_probe_failure_never_blocks(monkeypatch):
+    import yt_dlp
+
+    from backend.services.studio import jobs
+
+    class Boom:
+        def __init__(self, *a, **k): ...
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def extract_info(self, *a, **k): raise RuntimeError('net')
+    monkeypatch.setattr(yt_dlp, 'YoutubeDL', Boom)
+    assert jobs._live_status('https://youtu.be/x', {}) == ''

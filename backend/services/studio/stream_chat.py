@@ -68,8 +68,15 @@ def _runs_text(runs) -> str:
 _RENDERERS = ('liveChatTextMessageRenderer', 'liveChatPaidMessageRenderer')
 
 
-def parse_youtube_live_chat(path: Path) -> list[tuple[float, str]]:
-    rows: list[tuple[float, str]] = []
+def parse_youtube_live_chat(path: Path, recording_start: float | None = None) -> list[tuple[float, str]]:
+    """Messages from yt-dlp's `live_chat` file, as seconds from the video start.
+
+    A finished stream carries `videoOffsetTimeMsec`. A capture of a stream that is still running has
+    0 on every line; its only clock is each message's `timestampUsec`, so it needs `recording_start`
+    (epoch seconds of the video's first frame). Without it a live capture yields nothing rather than
+    a pile of messages at 0.
+    """
+    entries = []
     try:
         lines = Path(path).read_text(encoding='utf-8').splitlines()
     except OSError:
@@ -84,9 +91,22 @@ def parse_youtube_live_chat(path: Path) -> list[tuple[float, str]]:
             item = ((sub.get('addChatItemAction') or {}).get('item')) or {}
             for name in _RENDERERS:
                 if name in item:
-                    text = _runs_text((item[name].get('message') or {}).get('runs'))
-                    if _valid(offset, text):
-                        rows.append((offset, text))
+                    renderer = item[name]
+                    entries.append((offset, renderer.get('timestampUsec'), _runs_text((renderer.get('message') or {}).get('runs'))))
+    replay = any(offset > 0 for offset, _, _ in entries)
+    rows: list[tuple[float, str]] = []
+    for offset, stamp, text in entries:
+        if replay:
+            t = offset
+        elif recording_start is not None and stamp is not None:
+            try:
+                t = float(stamp) / 1e6 - recording_start
+            except (TypeError, ValueError):
+                continue
+        else:
+            continue
+        if _valid(t, text):
+            rows.append((t, text))
     rows.sort(key=lambda row: row[0])
     return rows
 
